@@ -3,10 +3,11 @@
 // 그 아래 따뜻한 1층 상점, 뒤로 어두운 신관 빌딩, 오른쪽엔 기둥이 선 크림색 석조 건물.
 // 앞은 차가 도는 넓은 도로와 둥근 분수, 휴대폰을 든 인파.
 // 파사드 영상은 실제 콘텐츠를 옮기지 않고, 빨강·금색·흰 대리석·짙은 파랑 분위기만 따서 새로 만들었다.
-import { type Ctx, type Light, W, H, R, P, PX, mix, hash, rng, vgrad, glow, perspFloor, makeCanvas } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, hash, rng, sky, glow, perspFloor, makeCanvas } from '../engine/pixel';
 import { drawLamp, drawLightTree, drawCrowd, drawStar } from '../engine/props';
 import { outlined, courses, ledge, shade, pane } from '../engine/texture';
-import type { Spot } from './types';
+import type { Spot, SceneEnv } from './types';
+import { showProgress } from '../game/daytime';
 
 // 미디어 파사드 영역: 둥근 모서리를 정면에서 본 모습이라 가운데가 가장 높고 양옆으로 살짝 낮아진다
 const FX = 14;
@@ -28,11 +29,13 @@ export const shinsegae: Spot = {
   chip: '명동 신세계',
   name: '명동 신세계백화점',
   snow: false,
+  outdoor: true,
+  hours: [17, 24],
   night: { color: '#060816', alpha: 0.38 },
   crowd: { y: 352, x0: 0, x1: 270, n: 14, col: '#141220' },
   build(c, r) {
     const L: Light[] = [];
-    vgrad(c, 0, ROAD_Y, '#0b1026', '#1a1e38', 6);
+    sky(c, 0, ROAD_Y, '#0b1026', '#1a1e38', 6);
 
     // 더 먼 빌딩들 (왼쪽 불 켜진 유리 빌딩, 오른쪽 낮은 빌딩)
     R(c, 0, 40, 34, FY, '#141a30');
@@ -148,8 +151,8 @@ export const shinsegae: Spot = {
     const fr = rng(42);
     const flakes = Array.from({ length: 50 }, () => ({ x: fr() * FW, y: fr() * FH, v: 6 + fr() * 10 }));
 
-    const animate = (c: Ctx, t: number) => {
-      drawFacade(c, t, flakes, grid);
+    const animate = (c: Ctx, t: number, env: SceneEnv) => {
+      drawFacade(c, t, flakes, grid, env.lit, env.lit > 0 ? showProgress(env.hour) : -1);
       drawTraffic(c, t);
     };
     return { lights: L, floor: [14, 384, 256, 462], board: { x: 8, y: 54 }, animate };
@@ -157,7 +160,7 @@ export const shinsegae: Spot = {
 };
 
 /** 미디어 파사드: 짙은 파랑 하늘을 흰 대리석 아치와 기둥이 감싸고, 빨간 리본 선물 상자가 화면 밖으로 튀어나온다 */
-function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number }[], grid: HTMLCanvasElement): void {
+function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number }[], grid: HTMLCanvasElement, lit: number, show: number): void {
   c.save();
   c.beginPath();
   c.moveTo(FX, FY + FH);
@@ -165,6 +168,20 @@ function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number
   c.lineTo(FX + FW, FY + FH);
   c.closePath();
   c.clip();
+
+  // 꺼져 있을 땐 검은 LED 판만
+  if (lit <= 0) {
+    R(c, FX, FY - 14, FW, FH + 14, '#14141c');
+    c.drawImage(grid, 0, 0, W, H);
+    c.restore();
+    return;
+  }
+  // 켜지는 중이면 아래부터 차오른다
+  if (lit < 1) {
+    c.beginPath();
+    c.rect(FX, FY + FH - (FH + 14) * lit, FW, (FH + 14) * lit);
+    c.clip();
+  }
 
   const k = (Math.sin(t * 0.25) + 1) / 2;
   for (let y = FY - 14; y < FY + FH; y += 2) R(c, FX, y, FW, 2, mix(mix('#0e1a52', '#1e3a8a', k * 0.5), '#2a4aa8', Math.max(0, y - FY) / FH));
@@ -198,8 +215,10 @@ function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number
   for (let y = FY; y < FY + FH; y += 2) R(c, bx + (y - FY) * 0.5, y, 16, 2, '#ffffff');
   c.globalAlpha = 1;
   c.globalCompositeOperation = 'source-over';
+  if (show >= 0) drawShow(c, t, show);
   c.drawImage(grid, 0, 0, W, H);
   c.restore();
+  if (lit < 1) return;
 
   // 화면 밖으로 튀어나온 듯한 빨간 리본 선물 상자 (아치 위에서 위아래로 둥실)
   const bob = Math.round(Math.sin(t * 1.4) * 3);
@@ -215,6 +234,40 @@ function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number
   }
   R(c, gx + 14, gy + 2, 4, 4, '#c8102e');
   drawStar(c, gx + 16 + Math.round(Math.sin(t) * 30), gy - 8, '#f2c46b');
+}
+
+/**
+ * 정각·30분마다 3분 동안 하는 쇼: 커다란 빨간 리본이 파사드를 휘감아 돌고 금빛 가루가 쏟아진다.
+ * p는 쇼 진행도 0~1 (처음과 끝은 리본이 화면 밖에서 들어오고 나간다).
+ */
+function drawShow(c: Ctx, t: number, p: number): void {
+  const fade = Math.min(1, p * 12, (1 - p) * 12);
+  // 화면 전체가 붉은빛으로 물든다
+  c.globalAlpha = 0.35 * fade;
+  R(c, FX, FY - 14, FW, FH + 14, '#8a0a1e');
+  c.globalAlpha = 1;
+  // 두 겹 리본: 굵기가 출렁이며 왼쪽에서 오른쪽으로 감아 돈다
+  for (const [ph, amp, base, col, hi] of [
+    [0, 26, FY + 44, '#d8102e', '#ff5a6a'],
+    [2.1, 18, FY + 66, '#b00a24', '#ff3a4a'],
+  ] as const) {
+    for (let x = FX; x < FX + FW; x += 1) {
+      const u = (x - FX) / FW;
+      const y = base + Math.sin(u * 5.5 + t * 1.6 + ph) * amp * fade;
+      const thick = (6 + Math.sin(u * 9 - t * 2 + ph) * 4) * fade;
+      if (thick <= 0.5) continue;
+      R(c, x, y - thick / 2, 1, thick, col);
+      R(c, x, y - thick / 2, 1, 1, hi);
+      // 리본 결을 따라 흐르는 빛
+      if ((x + Math.floor(t * 40)) % 23 < 2) R(c, x, y - thick / 2 + 1, 1, Math.max(1, thick - 2), '#ff8a94');
+    }
+  }
+  // 금빛 가루
+  for (let i = 0; i < 60; i++) {
+    const x = FX + ((i * 53 + t * 20 * ((i % 3) + 1)) % FW);
+    const y = FY - 10 + ((i * 37 + t * (14 + (i % 5) * 6)) % (FH + 10));
+    if ((i + Math.floor(t * 6)) % 3 === 0) R(c, x, y, 1, 1, i % 4 ? '#f2c46b' : '#ffffff');
+  }
 }
 
 /** 분수 로터리를 도는 버스와 택시 (헤드라이트·후미등이 어둠 위에 보이게 매 프레임 그린다) */

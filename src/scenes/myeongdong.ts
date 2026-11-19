@@ -1,7 +1,7 @@
 // 명동 롯데백화점 본점: 넓고 평평한 베이지 석조 건물 위를 따뜻한 전구 선으로 그린 고전풍 외관.
 // 층층이 둥근 창, 계단식 기둥 탑, 1층 위 반원 아치 줄, 부채꼴 장식. 왼쪽엔 리본·선물 간판,
 // 오른쪽 둥근 모서리엔 남색 LED 화면, 가장자리엔 금색 원뿔 트리. 앞은 넓은 인도와 소나무, 인파.
-import { type Ctx, type Light, W, H, R, P, PX, mix, vgrad, glow, line, perspFloor } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, sky, glow, line, perspFloor } from '../engine/pixel';
 import { drawTree, drawLamp, drawCrowd, drawStar } from '../engine/props';
 import { courses, ledge, shade, pane } from '../engine/texture';
 import type { Spot } from './types';
@@ -25,6 +25,8 @@ export const myeongdong: Spot = {
   chip: '명동 롯데백화점',
   name: '명동 롯데백화점',
   snow: false,
+  outdoor: true,
+  hours: [17, 24],
   night: { color: '#0a0806', alpha: 0.3 },
   crowd: { y: 356, x0: 0, x1: 270, n: 16, col: '#1c1612' },
   build(c, r) {
@@ -51,7 +53,7 @@ export const myeongdong: Spot = {
     };
 
     // 검은 밤하늘과 뒤쪽의 어두운 빌딩들, 유리 돔 탑
-    vgrad(c, 0, BASE, '#0a0a0a', '#15100d', 4);
+    sky(c, 0, BASE, '#0a0a0a', '#15100d', 4);
     for (const [x, w, h] of [[0, 40, 150], [36, 46, 120], [150, 50, 170], [196, 74, 140]] as const) {
       R(c, x, TOP - h + 80, w, h, '#221a14');
       courses(c, x, TOP - h + 80, w, h, '#1a140f', 8, 16);

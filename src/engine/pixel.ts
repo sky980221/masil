@@ -137,6 +137,30 @@ export interface Glow {
 let glowSink: Glow[] | null = null;
 let glowDefer: [number, number, number, string, number][] | null = null;
 
+/**
+ * 배경을 굽는 방식. normal: 보통, off: 불 꺼진 모습(빛 번짐 없음),
+ * key: 하늘 자리만 KEY 색으로 칠해 낮 하늘을 덮을 자리를 찾는다.
+ */
+export type BakeMode = 'normal' | 'off' | 'key';
+let bakeMode: BakeMode = 'normal';
+export const SKY_KEY = '#ff00ff';
+
+export function bakeAs<T>(mode: BakeMode, draw: () => T): T {
+  const prev = bakeMode;
+  bakeMode = mode;
+  try {
+    return draw();
+  } finally {
+    bakeMode = prev;
+  }
+}
+
+/** 하늘 그라데이션. 하늘 자리 찾기용으로 구울 때는 KEY 색 한 가지로 칠한다. */
+export function sky(c: Ctx, y0: number, y1: number, a: string, b: string, steps = 8): void {
+  if (bakeMode === 'key') R(c, 0, y0, W, y1 - y0, SKY_KEY);
+  else vgrad(c, y0, y1, a, b, steps);
+}
+
 /** draw 동안 부른 glow()를 모아 두었다가 돌려준다 (외곽선 임시 캔버스용) */
 export function deferGlows(draw: () => void): [number, number, number, string, number][] {
   const prev = glowDefer;
@@ -163,6 +187,8 @@ export function collectGlows<T>(draw: () => T): { result: T; glows: Glow[] } {
 
 /** 빛 번짐. 'lighter' 합성으로 부드럽게 더한다. 장면을 그리는 중이면 광원으로도 기록한다. */
 export function glow(c: Ctx, x: number, y: number, rad: number, col: string, a: number): void {
+  // 불 꺼진 배경·하늘 자리를 구울 때는 빛 번짐을 그리지 않는다
+  if (bakeMode !== 'normal') return;
   // 외곽선용 임시 캔버스에 그리는 중이면 빛 번짐은 미뤘다가 본 캔버스에 그린다
   if (glowDefer) {
     glowDefer.push([x, y, rad, col, a]);

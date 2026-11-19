@@ -1,8 +1,11 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
-import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows, posterize } from '../engine/pixel';
+import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows, posterize, bakeAs, vgrad } from '../engine/pixel';
 import { type Look, normalizeLook } from '../avatar/options';
 import { type AvatarPose, type Pose, drawAvatar, headTop } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
+import type { Night } from '../scenes/types';
+import { seoulHour, skyPhase, isLit, lightText, showText } from './daytime';
+import { type Weather, onWeather } from './weather';
 import type { ActKind, ActPayload, Emote, PeerState } from '../net/protocol';
 import { drawBoard } from './board';
 import { Lighting } from './lighting';
@@ -94,18 +97,57 @@ interface FarWalker {
 
 const MY_SPEED = 55;
 
-/** 장소 배경을 한 번 구워 둔다 (빛 번짐 위치도 함께 모은다) */
-function bake(spot: Spot): { bg: HTMLCanvasElement; scene: SceneBuild; glows: Glow[] } {
-  const bg = makeCanvas(W, H);
-  const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77)));
-  posterize(bg.getContext('2d')!);
-  return { bg, scene, glows };
+interface Baked {
+  /** 불 켜진 배경 */
+  bg: HTMLCanvasElement;
+  /** 불 꺼진 배경 (빛 번짐 없음) */
+  off: HTMLCanvasElement;
+  /** 바깥 장소의 낮 하늘·노을 하늘 (하늘 자리에만 칠해 둔 것) */
+  day?: HTMLCanvasElement;
+  dusk?: HTMLCanvasElement;
+  scene: SceneBuild;
+  glows: Glow[];
 }
+
+/** 장소 배경을 한 번 구워 둔다: 켜진 모습, 꺼진 모습, 바깥이면 낮·노을 하늘까지 */
+function bake(spot: Spot): Baked {
+  const seed = 1000 + SPOTS.indexOf(spot) * 77;
+  const bg = makeCanvas(W, H);
+  const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(seed)));
+  posterize(bg.getContext('2d')!);
+  const off = makeCanvas(W, H);
+  bakeAs('off', () => spot.build(off.getContext('2d')!, rng(seed)));
+  posterize(off.getContext('2d')!);
+  if (!spot.outdoor) return { bg, off, scene, glows };
+  // 하늘 자리만 KEY 색으로 구워서 낮 하늘을 덮을 모양(마스크)을 얻는다
+  const key = makeCanvas(W, H);
+  bakeAs('key', () => spot.build(key.getContext('2d')!, rng(seed)));
+  const kc = key.getContext('2d')!;
+  const img = kc.getImageData(0, 0, key.width, key.height);
+  const d = img.data;
+  for (let o = 0; o < d.length; o += 4) d[o + 3] = d[o] > 240 && d[o + 1] < 16 && d[o + 2] > 240 ? 255 : 0;
+  kc.putImageData(img, 0, 0);
+  const paint = (stops: [number, string, string][]) => {
+    const cv = makeCanvas(W, H);
+    const c = cv.getContext('2d')!;
+    for (const [y0, a, b] of stops) vgrad(c, y0, Math.min(H, y0 + 120), a, b, 10);
+    c.globalCompositeOperation = 'destination-in';
+    c.drawImage(key, 0, 0, W, H);
+    return cv;
+  };
+  const day = paint([[0, '#5f8fd0', '#a9c6e6'], [120, '#a9c6e6', '#d6e4f0'], [240, '#d6e4f0', '#e6ecf2'], [360, '#e6ecf2', '#e6ecf2']]);
+  const dusk = paint([[0, '#2a2c62', '#7a4a7a'], [120, '#7a4a7a', '#e8845a'], [240, '#e8845a', '#f6c48a'], [360, '#f6c48a', '#f6c48a']]);
+  return { bg, off, day, dusk, scene, glows };
+}
+
+/** 점등할 때 아래에서 위로 불이 번져 올라가는 데 걸리는 시간 (초) */
+const SWEEP_TIME = 2.6;
+/** 문 닫은 실내 */
+const CLOSED: Night = { color: '#05060c', alpha: 0.5 };
 
 export class World {
   spot!: Spot;
   scene!: SceneBuild;
-  private bg = makeCanvas(W, H);
   private vignette = makeVignette();
   me: Walker;
   name = '';
@@ -114,7 +156,14 @@ export class World {
   private snow: Flake[] = [];
   private sparkles: Sparkle[] = [];
   readonly keys = new Set<string>();
-  private cache = new Map<string, { bg: HTMLCanvasElement; scene: SceneBuild; glows: Glow[] }>();
+  private cache = new Map<string, Baked>();
+  private baked!: Baked;
+  /** 조명 상태: 장소에 막 들어왔을 땐 null, 켜짐/꺼짐이 바뀌면 점등 연출을 한다 */
+  private litState: boolean | null = null;
+  private sweepAt = -1;
+  private lit = 0;
+  private weather: Weather | null = null;
+  private snowOn = false;
   private glows: Glow[] = [];
   private readonly lighting = new Lighting();
   private far: FarWalker[] = [];
@@ -134,9 +183,14 @@ export class World {
       this.cache.clear();
       const hit = bake(this.spot);
       this.cache.set(this.spot.key, hit);
-      this.bg = hit.bg;
+      this.baked = hit;
       this.scene = hit.scene;
       this.glows = hit.glows;
+    });
+    // 서울에 눈이 오면 바깥 장소에도 눈이 온다
+    onWeather((w) => {
+      this.weather = w;
+      this.syncSnow();
     });
   }
 
@@ -149,9 +203,10 @@ export class World {
       hit = bake(spot);
       this.cache.set(spot.key, hit);
     }
-    this.bg = hit.bg;
+    this.baked = hit;
     this.scene = hit.scene;
     this.glows = hit.glows;
+    this.litState = null;
     const cl = spot.crowd;
     this.far = cl
       ? Array.from({ length: cl.n }, () => ({ x: cl.x0 + Math.random() * (cl.x1 - cl.x0), v: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 7), h: Math.random() < 0.5 ? 6 : 7, ph: Math.random() * 7 }))
@@ -160,15 +215,37 @@ export class World {
     const [, y0, , y1] = this.scene.floor;
     this.me.x = this.me.tx = 135;
     this.me.y = this.me.ty = Math.min(y1, y0 + 50);
-    this.snow = spot.snow
+    this.prints = [];
+    this.snowOn = !this.snowing;
+    this.syncSnow();
+  }
+
+  /** 지금 이 장소에 눈이 오는지: 원래 눈 오는 장소이거나, 바깥인데 서울에 눈이 올 때 */
+  get snowing(): boolean {
+    return this.spot.snow || (!!this.spot.outdoor && !!this.weather?.snow);
+  }
+
+  private syncSnow(): void {
+    if (!this.spot || this.snowOn === this.snowing) return;
+    this.snowOn = this.snowing;
+    this.snow = this.snowOn
       ? SNOW_LAYERS.flatMap((L, z) =>
           Array.from({ length: L.n }, () => ({ x: Math.random() * W, y: Math.random() * H, v: L.speed[0] + Math.random() * (L.speed[1] - L.speed[0]), ph: Math.random() * 7, z })),
         )
       : [];
-    this.prints = [];
-    this.sparkles = spot.snow
+    this.sparkles = this.snowOn
       ? []
       : Array.from({ length: 30 }, () => ({ x: Math.random() * W, y: Math.random() * 300, p: Math.random() * 7, s: 1 + Math.random() * 2 }));
+  }
+
+  /** 위쪽 상태 줄: 점등 안내, 신세계 쇼 시간, 서울 날씨 */
+  status(nowMs: number): string {
+    const h = seoulHour(nowMs);
+    const parts = [lightText(h, this.spot.hours, !!this.spot.closes)];
+    if (this.spot.key === 'shinsegae' && isLit(h, this.spot.hours)) parts.push(showText(h));
+    const w = this.weather;
+    if (w) parts.push(`서울 ${w.temp}°${w.snow ? ' 눈' : w.rain ? ' 비' : ''}`);
+    return parts.join(' · ');
   }
 
   setLook(look: Look): void {
@@ -287,7 +364,7 @@ export class World {
         e.jumpAt = undefined;
         e.air = 0;
         const here = !('spot' in e) || (e as Peer).spot === this.spot.key;
-        if (this.spot.snow && here) {
+        if (this.snowOn && here) {
           for (let i = 0; i < 8; i++) {
             const a = Math.PI + (Math.PI * i) / 7;
             this.puffs.push({ x: e.x + Math.cos(a) * 3, y: e.y, vx: Math.cos(a) * (14 + Math.random() * 10), vy: -8 - Math.random() * 14, life: 0.5 });
@@ -321,7 +398,7 @@ export class World {
       }
     }
     // 눈 오는 날엔 걸은 자리에 발자국이 남았다가 사라진다
-    if (this.spot.snow) {
+    if (this.snowOn) {
       for (const p of this.prints) p.age += dt;
       while (this.prints.length && this.prints[0].age > PRINT_LIFE) this.prints.shift();
       for (const e of [this.me, ...this.peers.values()]) {
@@ -342,8 +419,53 @@ export class World {
   }
 
   render(c: Ctx, t: number, nowMs: number): void {
+    const hour = seoulHour(nowMs);
+    const { day, dusk } = this.spot.outdoor ? skyPhase(hour) : { day: 0, dusk: 0 };
+    const on = isLit(hour, this.spot.hours);
+    if (this.litState === null) {
+      this.litState = on;
+      this.lit = on ? 1 : 0;
+      this.sweepAt = -1;
+    } else if (on !== this.litState) {
+      // 보고 있는 동안 점등 시각이 되면 아래에서 위로 불이 번져 올라간다
+      this.litState = on;
+      this.sweepAt = on ? t : -1;
+      this.lit = 0;
+    }
+    if (this.sweepAt >= 0) {
+      this.lit = Math.min(1, (t - this.sweepAt) / SWEEP_TIME);
+      if (this.lit >= 1) this.sweepAt = -1;
+    }
+    const litY = H * (1 - this.lit);
+
     // 1) 빛을 받는 것들: 배경, 멀리 있는 사람, 기차, 캐릭터
-    c.drawImage(this.bg, 0, 0, W, H);
+    const B = this.baked;
+    if (this.lit < 1) c.drawImage(B.off, 0, 0, W, H);
+    if (this.lit > 0) {
+      c.save();
+      c.beginPath();
+      c.rect(0, litY, W, H - litY);
+      c.clip();
+      c.drawImage(B.bg, 0, 0, W, H);
+      c.restore();
+    }
+    // 바깥 장소: 낮엔 파란 하늘, 해 질 녘엔 노을, 낮엔 장면 전체를 조금 밝게
+    if (B.day && day > 0) {
+      c.globalAlpha = day;
+      c.drawImage(B.day, 0, 0, W, H);
+    }
+    if (B.dusk && dusk > 0) {
+      c.globalAlpha = dusk * 0.85;
+      c.drawImage(B.dusk, 0, 0, W, H);
+    }
+    c.globalAlpha = 1;
+    if (day > 0) {
+      c.globalCompositeOperation = 'screen';
+      c.globalAlpha = day * 0.35;
+      R(c, 0, 0, W, H, '#5a6878');
+      c.globalCompositeOperation = 'source-over';
+      c.globalAlpha = 1;
+    }
     const cl = this.spot.crowd;
     if (cl) {
       for (const f of this.far) {
@@ -372,10 +494,17 @@ export class World {
 
     // 2) 밤이면 어둠을 덮고 광원 자리만 밝힌다
     // 캐릭터가 어둠에 묻히지 않도록 사람마다 은은한 빛을 둔다
-    if (this.spot.night) this.lighting.draw(c, t, this.spot.night, [...this.glows, ...all.map((e) => ({ x: e.x, y: e.y - 16, r: 26, a: 0.3 }))]);
+    const closed = !!this.spot.closes && !on;
+    const base = closed ? CLOSED : this.spot.night;
+    const night = base && { color: base.color, alpha: base.alpha * (1 - 0.9 * day) };
+    if (night && night.alpha > 0.01) {
+      const lamps = this.lit > 0 ? this.glows.filter((g) => g.y >= litY) : [];
+      this.lighting.draw(c, t, night, [...lamps, ...all.map((e) => ({ x: e.x, y: e.y - 16, r: 26, a: 0.3 }))]);
+    }
 
     // 3) 스스로 빛나는 것들은 어둠 위에: 전구, 반짝임, 미디어 파사드, 전광판
     for (const l of this.scene.lights) {
+      if (!this.lit || l.y < litY) continue;
       // 제각각 깜빡임 + 아래에서 위로 올라가는 느린 빛 물결
       const b = ((Math.sin(t * l.s + l.p) + 1) / 2) * 0.65 + ((Math.sin(t * 1.6 + l.y * 0.045) + 1) / 2) * 0.35;
       if (b < 0.25 && !l.big) continue;
@@ -393,14 +522,14 @@ export class World {
       }
     }
     c.globalAlpha = 1;
-    for (const s of this.sparkles) {
+    for (const s of this.lit ? this.sparkles : []) {
       const b = (Math.sin(t * s.s + s.p) + 1) / 2;
       if (b <= 0.85) continue;
       c.globalAlpha = b - 0.5;
       for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) P(c, s.x + dx, s.y + dy, '#fff3c4');
     }
     c.globalAlpha = 1;
-    this.scene.animate?.(c, t);
+    this.scene.animate?.(c, t, { lit: this.lit, hour });
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
     const nowS = clock();
     for (const e of all) if (e.emote) drawEmote(c, e, nowS - e.emote.at);

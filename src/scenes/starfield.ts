@@ -16,6 +16,8 @@ export const starfield: Spot = {
   chip: '삼성 별마당',
   name: '삼성 별마당 도서관',
   snow: false,
+  hours: [10.5, 22],
+  closes: true,
   night: { color: '#140c06', alpha: 0.1 },
   crowd: { y: 334, x0: 0, x1: 270, n: 12, col: '#2a221c' },
   build(c, r) {

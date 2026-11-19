@@ -46,11 +46,21 @@ export function daysLeft(nowMs: number): number {
 }
 
 /**
- * 시연용 시계. 주소에 ?date=2026-12-24 를 붙이면 그날 밤 9시로 시간을 옮긴다.
+ * 시연용 시계. 주소에 ?date=2026-12-24 를 붙이면 그날 밤 9시로,
+ * ?time=16:59 를 붙이면 (오늘 또는 date 날의) 서울 그 시각으로 시간을 옮긴다. 시계는 거기서부터 흐른다.
  */
 const params = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
-const fake = params?.get('date');
-const OFFSET = fake && !Number.isNaN(Date.parse(`${fake}T21:00:00+09:00`)) ? Date.parse(`${fake}T21:00:00+09:00`) - Date.now() : 0;
+const fakeDate = params?.get('date');
+const fakeTime = params?.get('time');
+function startAt(): number | null {
+  if (!fakeDate && !fakeTime) return null;
+  const date = fakeDate && /^\d{4}-\d{2}-\d{2}$/.test(fakeDate) ? fakeDate : new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);
+  const time = fakeTime && /^\d{1,2}:\d{2}$/.test(fakeTime) ? fakeTime.padStart(5, '0') : '21:00';
+  const ms = Date.parse(`${date}T${time}:00+09:00`);
+  return Number.isNaN(ms) ? null : ms;
+}
+const DEMO_START = startAt();
+const OFFSET = DEMO_START === null ? 0 : DEMO_START - Date.now();
 export const clockNow = (): number => Date.now() + OFFSET;
 
 /** 스케줄의 모든 항목이 실제 꾸미기 항목인지 (테스트용) */

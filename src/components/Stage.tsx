@@ -20,6 +20,7 @@ export function Stage({ world, keysEnabled, flashKey, overlay }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tagsRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const [hint, setHint] = useState(true);
   // 두 번 탭하면 점프
   const lastTap = useRef({ t: 0, x: 0, y: 0 });
@@ -35,7 +36,12 @@ export function Stage({ world, keysEnabled, flashKey, overlay }: Props) {
       const dt = Math.min(0.05, (ts - last) / 1000);
       last = ts;
       world.update(dt);
-      world.render(ctx, ts / 1000, clockNow());
+      const now = clockNow();
+      world.render(ctx, ts / 1000, now);
+      // 점등·쇼·날씨 안내 (바뀔 때만 글자를 고친다)
+      const st = statusRef.current;
+      const text = world.status(now);
+      if (st && st.textContent !== text) st.textContent = text;
 
       // 이름표: 필요한 만큼 div를 늘리고 줄인다
       const people = world.namedWalkers();
@@ -125,6 +131,7 @@ export function Stage({ world, keysEnabled, flashKey, overlay }: Props) {
         />
         <div ref={tagsRef} className="tags" aria-hidden="true" />
         <div ref={flashRef} className="flash" />
+        <div ref={statusRef} className="status" aria-live="polite" />
         <div className="hint" style={{ opacity: hint ? 1 : 0 }}>
           바닥을 누르면 걸어가요 · 두 번 누르면 점프
         </div>

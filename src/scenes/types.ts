@@ -1,4 +1,5 @@
 import type { Ctx, Light, Rand } from '../engine/pixel';
+import type { Hours } from '../game/daytime';
 
 /** 장면 안에 걸린 카운트다운 전광판 위치 */
 export interface BoardSpot {
@@ -25,13 +26,21 @@ export interface TrainTrack {
 /** 아바타가 걸어 다닐 수 있는 바닥 영역 [x0, y0, x1, y1] */
 export type Floor = [number, number, number, number];
 
+/** 움직이는 부분이 참고하는 지금 상태 */
+export interface SceneEnv {
+  /** 조명 켜짐 정도 0~1 (점등 순간엔 서서히 올라간다) */
+  lit: number;
+  /** 서울 시각 0~24 */
+  hour: number;
+}
+
 export interface SceneBuild {
   lights: Light[];
   floor: Floor;
   board?: BoardSpot;
   trains?: TrainTrack[];
   /** 매 프레임 배경 위에 덧그리는 움직이는 부분 (미디어 파사드 등) */
-  animate?: (c: Ctx, t: number) => void;
+  animate?: (c: Ctx, t: number, env: SceneEnv) => void;
 }
 
 /** 밤 장면을 덮는 어둠. 광원 자리만 뚫려서 밝게 남는다. */
@@ -60,6 +69,12 @@ export interface Spot {
   /** 사진에 찍히는 이름 */
   name: string;
   snow: boolean;
+  /** 하늘이 보이는 바깥 장소 (낮엔 하늘이 밝아지고, 서울에 눈이 오면 눈도 온다) */
+  outdoor?: boolean;
+  /** 조명이 켜져 있는 시간 (서울 시각). 실제 운영 시간은 해마다 달라 대략으로 잡았다. */
+  hours: Hours;
+  /** 실내라 문 닫는 시간이 있는 곳 (꺼져 있을 때 '영업 끝'으로 안내) */
+  closes?: boolean;
   /** 저해상도 배경 캔버스에 정적인 장면을 한 번 그리고, 깜빡일 전구 목록을 돌려준다. */
   build(c: Ctx, r: Rand): SceneBuild;
 }

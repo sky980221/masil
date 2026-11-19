@@ -1,7 +1,7 @@
 // 잠실 롯데월드몰 월드파크 크리스마스 마켓: 나무 데크 광장 가운데 빨간 하트를 단 트리,
 // 왼쪽엔 둥근 몰 건물과 2층 회전목마, 오른쪽 뒤로 매끈한 유리 원뿔 타워와 하얀 고깔 텐트,
 // 가장자리를 가로지르는 전구 줄, 하얀 구형 가로등, 소나무 실루엣, 인공 눈.
-import { type Ctx, type Light, W, H, R, P, PX, mix, vgrad, glow, line, perspFloor, reflect } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, sky, glow, line, perspFloor, reflect } from '../engine/pixel';
 import { drawTree, drawCrowd, drawStar } from '../engine/props';
 import { outlined, shade } from '../engine/texture';
 import type { Spot } from './types';
@@ -17,6 +17,8 @@ export const jamsil: Spot = {
   chip: '잠실 롯데월드몰',
   name: '잠실 롯데월드몰',
   snow: true,
+  outdoor: true,
+  hours: [17, 24],
   night: { color: '#070b24', alpha: 0.38 },
   crowd: { y: 286, x0: 0, x1: 270, n: 14, col: '#12182a' },
   build(c, r) {
@@ -31,7 +33,7 @@ export const jamsil: Spot = {
     };
 
     // 짙은 남색 하늘, 지평선 쪽 도시 불빛
-    vgrad(c, 0, 280, '#0b1630', '#26304e', 8);
+    sky(c, 0, 280, '#0b1630', '#26304e', 8);
     for (let i = 0; i < 50; i++) {
       c.globalAlpha = 0.3 + r() * 0.5;
       P(c, r() * W, r() * 140, '#ffffff');

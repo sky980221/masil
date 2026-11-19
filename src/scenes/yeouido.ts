@@ -20,6 +20,8 @@ export const yeouido: Spot = {
   chip: '여의도 더현대',
   name: '여의도 더현대 서울',
   snow: false,
+  hours: [10.5, 20.5],
+  closes: true,
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 300 };
