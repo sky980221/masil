@@ -28,8 +28,25 @@ export interface SceneBuild {
   animate?: (c: Ctx, t: number) => void;
 }
 
+/** 밤 장면을 덮는 어둠. 광원 자리만 뚫려서 밝게 남는다. */
+export interface Night {
+  color: string;
+  alpha: number;
+}
+
+/** 지평선을 따라 오가는 멀리 있는 사람들 */
+export interface CrowdLine {
+  y: number;
+  x0: number;
+  x1: number;
+  n: number;
+  col: string;
+}
+
 export interface Spot {
   key: string;
+  night?: Night;
+  crowd?: CrowdLine;
   /** 위쪽 탭에 보이는 짧은 이름 */
   chip: string;
   /** 사진에 찍히는 이름 */

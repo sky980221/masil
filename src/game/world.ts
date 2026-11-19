@@ -1,10 +1,11 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
-import { type Ctx, W, H, R, P, mix, rng, makeCanvas } from '../engine/pixel';
+import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows } from '../engine/pixel';
 import { type Look, normalizeLook } from '../avatar/options';
 import { type AvatarPose, drawAvatar } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
 import type { PeerState } from '../net/protocol';
 import { drawBoard } from './board';
+import { Lighting } from './lighting';
 
 export interface Walker extends AvatarPose {
   tx: number;
@@ -48,6 +49,14 @@ interface Sparkle {
   s: number;
 }
 
+/** 지평선을 오가는 멀리 있는 사람 */
+interface FarWalker {
+  x: number;
+  v: number;
+  h: number;
+  ph: number;
+}
+
 const MY_SPEED = 55;
 
 export class World {
@@ -62,7 +71,10 @@ export class World {
   private snow: Flake[] = [];
   private sparkles: Sparkle[] = [];
   readonly keys = new Set<string>();
-  private cache = new Map<string, { bg: HTMLCanvasElement; scene: SceneBuild }>();
+  private cache = new Map<string, { bg: HTMLCanvasElement; scene: SceneBuild; glows: Glow[] }>();
+  private glows: Glow[] = [];
+  private readonly lighting = new Lighting();
+  private far: FarWalker[] = [];
 
   constructor(look: Look, spotIndex: number) {
     this.me = { x: 135, y: 420, tx: 135, ty: 420, dir: 0, moving: false, seed: 3, look, wait: 0, speed: MY_SPEED };
@@ -76,12 +88,17 @@ export class World {
     let hit = this.cache.get(spot.key);
     if (!hit) {
       const bg = makeCanvas(W, H);
-      const scene = spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77));
-      hit = { bg, scene };
+      const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77)));
+      hit = { bg, scene, glows };
       this.cache.set(spot.key, hit);
     }
     this.bg = hit.bg;
     this.scene = hit.scene;
+    this.glows = hit.glows;
+    const cl = spot.crowd;
+    this.far = cl
+      ? Array.from({ length: cl.n }, () => ({ x: cl.x0 + Math.random() * (cl.x1 - cl.x0), v: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 7), h: Math.random() < 0.5 ? 6 : 7, ph: Math.random() * 7 }))
+      : [];
 
     const [, y0, , y1] = this.scene.floor;
     this.me.x = this.me.tx = 135;
@@ -172,6 +189,14 @@ export class World {
     }
     moveToward(this.me, dt);
     for (const p of this.peers.values()) moveToward(p, dt);
+    const cl = this.spot.crowd;
+    if (cl) {
+      for (const f of this.far) {
+        f.x += f.v * dt;
+        if (f.x < cl.x0) f.x = cl.x1;
+        if (f.x > cl.x1) f.x = cl.x0;
+      }
+    }
     for (const f of this.snow) {
       f.y += f.v * dt;
       f.x += Math.sin(f.y / 22 + f.ph) * 0.2;
@@ -183,8 +208,27 @@ export class World {
   }
 
   render(c: Ctx, t: number, nowMs: number): void {
+    // 1) 빛을 받는 것들: 배경, 멀리 있는 사람, 기차, 캐릭터
     c.drawImage(this.bg, 0, 0);
-    // 전구: 어두울 때는 배경에 깔린 흐린 점만 보이고, 밝을 때 겹쳐 그린다
+    const cl = this.spot.crowd;
+    if (cl) {
+      for (const f of this.far) {
+        const step = Math.floor(t * 6 + f.ph) % 2;
+        R(c, f.x, cl.y - f.h - step, 2, f.h - 2, cl.col);
+        R(c, f.x, cl.y - f.h - 2 - step, 2, 2, cl.col);
+        R(c, f.x + (step ? 1 : 0), cl.y - 2, 1, 2, cl.col);
+      }
+    }
+    if (this.scene.train) drawTrain(c, t, this.scene.train);
+    const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
+    const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
+    for (const e of all) drawAvatar(c, e, t);
+
+    // 2) 밤이면 어둠을 덮고 광원 자리만 밝힌다
+    // 캐릭터가 어둠에 묻히지 않도록 사람마다 은은한 빛을 둔다
+    if (this.spot.night) this.lighting.draw(c, t, this.spot.night, [...this.glows, ...all.map((e) => ({ x: e.x, y: e.y - 16, r: 26, a: 0.3 }))]);
+
+    // 3) 스스로 빛나는 것들은 어둠 위에: 전구, 반짝임, 미디어 파사드, 전광판
     for (const l of this.scene.lights) {
       const b = (Math.sin(t * l.s + l.p) + 1) / 2;
       if (b < 0.25 && !l.big) continue;
@@ -208,10 +252,8 @@ export class World {
     c.globalAlpha = 1;
     this.scene.animate?.(c, t);
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
-    if (this.scene.train) drawTrain(c, t, this.scene.train);
-    const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
-    const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
-    for (const e of all) drawAvatar(c, e, t);
+
+    // 4) 눈과 가장자리 그늘
     for (const f of this.snow) {
       c.globalAlpha = f.big ? 0.95 : 0.7;
       R(c, f.x, f.y, f.big ? 2 : 1, f.big ? 2 : 1, '#ffffff');

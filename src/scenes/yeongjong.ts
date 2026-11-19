@@ -8,6 +8,7 @@ export const yeongjong: Spot = {
   chip: '영종 파라다이스시티',
   name: '영종 파라다이스시티',
   snow: false,
+  night: { color: '#160d30', alpha: 0.22 },
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 300 };

@@ -15,6 +15,8 @@ export const shinsegae: Spot = {
   chip: '명동 신세계',
   name: '명동 신세계백화점',
   snow: true,
+  night: { color: '#08081e', alpha: 0.4 },
+  crowd: { y: 330, x0: 10, x1: 260, n: 10, col: '#16131f' },
   build(c, r) {
     const L: Light[] = [];
     vgrad(c, 0, 320, '#07071a', '#1c1634');

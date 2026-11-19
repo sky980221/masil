@@ -64,12 +64,61 @@ export function pick<T>(r: Rand, a: readonly T[]): T {
   return a[(r() * a.length) | 0];
 }
 
-export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string): void {
-  for (let y = y0; y < y1; y++) R(c, 0, y, W, 1, mix(a, b, (y - y0) / Math.max(1, y1 - y0 - 1)));
+// 4×4 베이어 행렬: 두 색 사이를 점무늬로 섞어 픽셀 아트다운 그라데이션을 만든다
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
+
+/**
+ * 위에서 아래로 a → b 그라데이션. 매끈하게 칠하지 않고 steps 단계로 나눈 뒤
+ * 단계 경계를 디더링(점무늬)으로 섞는다.
+ */
+export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string, steps = 8): void {
+  const h = y1 - y0;
+  if (h <= 0) return;
+  const img = c.createImageData(W, h);
+  const d = img.data;
+  const A = hexToRgb(a);
+  const B = hexToRgb(b);
+  const level = (k: number) => A.map((v, i) => Math.round(v + ((B[i] - v) * k) / steps));
+  const levels = Array.from({ length: steps + 1 }, (_, k) => level(k));
+  for (let y = 0; y < h; y++) {
+    const t = (y / Math.max(1, h - 1)) * steps;
+    const k = Math.min(steps - 1, Math.floor(t));
+    const frac = t - k;
+    for (let x = 0; x < W; x++) {
+      const col = frac > BAYER[(y & 3) * 4 + (x & 3)] ? levels[k + 1] : levels[k];
+      const o = (y * W + x) * 4;
+      d[o] = col[0];
+      d[o + 1] = col[1];
+      d[o + 2] = col[2];
+      d[o + 3] = 255;
+    }
+  }
+  c.putImageData(img, 0, y0);
 }
 
-/** 빛 번짐. 'lighter' 합성으로 부드럽게 더한다. */
+/** 장면을 그리는 동안 빛 번짐(glow) 위치를 모아 조명 레이어의 광원으로 쓴다. */
+export interface Glow {
+  x: number;
+  y: number;
+  r: number;
+  a: number;
+}
+let glowSink: Glow[] | null = null;
+
+export function collectGlows<T>(draw: () => T): { result: T; glows: Glow[] } {
+  const prev = glowSink;
+  const glows: Glow[] = [];
+  glowSink = glows;
+  try {
+    return { result: draw(), glows };
+  } finally {
+    glowSink = prev;
+  }
+}
+
+/** 빛 번짐. 'lighter' 합성으로 부드럽게 더한다. 장면을 그리는 중이면 광원으로도 기록한다. */
 export function glow(c: Ctx, x: number, y: number, rad: number, col: string, a: number): void {
+  glowSink?.push({ x, y, r: rad, a });
   c.save();
   c.globalCompositeOperation = 'lighter';
   const g = c.createRadialGradient(x, y, 0, x, y, rad);

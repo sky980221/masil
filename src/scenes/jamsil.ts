@@ -8,6 +8,8 @@ export const jamsil: Spot = {
   chip: '잠실 롯데월드몰',
   name: '잠실 롯데월드몰',
   snow: true,
+  night: { color: '#070b26', alpha: 0.42 },
+  crowd: { y: 300, x0: 0, x1: 270, n: 10, col: '#1b1f33' },
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 240 };

@@ -8,6 +8,8 @@ export const myeongdong: Spot = {
   chip: '명동 롯데백화점',
   name: '명동 롯데백화점',
   snow: true,
+  night: { color: '#0a0820', alpha: 0.36 },
+  crowd: { y: 318, x0: 50, x1: 220, n: 8, col: '#1a1724' },
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 250 };
