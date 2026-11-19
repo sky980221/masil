@@ -1,8 +1,9 @@
 // 삼성 별마당 도서관: 한쪽에 둥글게 휘어 솟은 거대한 책장 탑(층마다 하얀 빛 띠),
 // 그 옆으로 올라가는 쌍둥이 에스컬레이터, 다른 쪽엔 천장에 닿을 듯한 좁고 높은 트리.
 // 위로는 철골 격자 채광창과 매달린 별·불꽃 전구·장난감 모양 장식, 뒤로 유리벽과 빛 커튼 걸린 발코니.
-import { type Ctx, type Light, W, H, R, P, mix, hash, glow, line, perspFloor, BOOK } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, hash, glow, line, perspFloor, BOOK } from '../engine/pixel';
 import { drawTree, drawStar } from '../engine/props';
+import { outlined, ledge } from '../engine/texture';
 import type { Spot } from './types';
 
 const LIGHT = '#f6d98a';
@@ -38,13 +39,21 @@ export const starfield: Spot = {
     for (let y = 0; y < 112; y += 10) R(c, 0, y, W, 1, '#3a4a60');
     c.globalAlpha = 1;
     glow(c, 160, 90, 130, '#ffd98a', 0.35);
-    R(c, 0, 112, W, 6, '#d9b98c');
 
     // 뒤쪽 유리벽과 위층 발코니 (빛 커튼 + 초록 갈랜드)
     R(c, 0, 118, W, 186, '#2b3a5c');
-    for (let x = 0; x < W; x += 14) R(c, x, 118, 1, 186, '#1e2a44');
-    for (let y = 118; y < 304; y += 22) R(c, 0, y, W, 1, '#1e2a44');
-    R(c, 0, 196, W, 6, '#d9b98c');
+    for (let x = 0; x < W; x += 14) {
+      R(c, x, 118, 1, 186, '#1e2a44');
+      R(c, x + 1, 118, PX, 186, '#3a4c72');
+      // 유리에 비친 비스듬한 빛
+      R(c, x + 4, 118, 2, 78, 'rgba(160,190,230,0.08)');
+    }
+    for (let y = 118; y < 304; y += 22) {
+      R(c, 0, y, W, 1, '#1e2a44');
+      R(c, 0, y + 1, W, PX, '#3a4c72');
+    }
+    ledge(c, 0, 112, W, '#e4c89c', 6);
+    ledge(c, 0, 196, W, '#e4c89c', 6);
     for (let x = 0; x < W; x++) P(c, x, 194 + Math.round(Math.abs(Math.sin(x / 9)) * 3), '#2f4a2a');
     for (let x = 4; x < W; x += 6) for (let y = 204; y < 246; y += 4) if ((x + y) % 8 < 4) bulb(x, y);
     glow(c, 135, 222, 140, '#ffd98a', 0.15);
@@ -92,6 +101,10 @@ export const starfield: Spot = {
         const x = x0 + i * 0.22;
         const y = 330 - i;
         R(c, x, y, 10, 1, i % 4 === 0 ? '#9a9aa2' : '#c4c4cc');
+        R(c, x + 9, y, 1, 1, '#7a7a84');
+        // 옆판(어두운 유리)과 손잡이
+        R(c, x - 1, y - 3, 1, 4, 'rgba(40,50,70,0.6)');
+        P(c, x - 1, y - 4, '#2a2a30');
         P(c, x, y - 4, '#2f4a2a');
         if (i % 5 === 0) bulb(x, y - 5);
       }
@@ -114,9 +127,9 @@ export const starfield: Spot = {
       P(c, x, y, Math.floor(i / 3) % 2 ? '#b8322c' : '#ffffff');
     }
     // 트리에 붙은 납작한 장난감 (기차, 페가수스, 곰)
-    drawToyTrain(c, T.cx - 22, top + 200);
-    drawPegasus(c, T.cx + 16, top + 120);
-    drawTeddy(c, T.cx - 10, top + 90);
+    outlined(c, [T.cx - 22, top + 195, 14, 15], (c) => drawToyTrain(c, T.cx - 22, top + 200));
+    outlined(c, [T.cx + 16, top + 113, 16, 17], (c) => drawPegasus(c, T.cx + 16, top + 120));
+    outlined(c, [T.cx - 14, top + 83, 8, 15], (c) => drawTeddy(c, T.cx - 10, top + 90));
 
     // 천장에 매달린 불꽃 전구, 큰 금별, 장난감 모양 장식
     for (const [x, y] of [[120, 70], [230, 48], [150, 140], [252, 120], [128, 30]] as const) {
@@ -130,17 +143,25 @@ export const starfield: Spot = {
       R(c, x - 3, y - 3, 7, 7, '#f2c14e');
       drawStar(c, x, y, '#ffe9a8', true);
     }
-    drawController(c, 150, 96);
-    drawFootball(c, 236, 190);
+    R(c, 150, 0, 1, 90, '#5a4a3a');
+    outlined(c, [136, 91, 28, 16], (c) => drawController(c, 150, 96));
+    R(c, 236, 0, 1, 183, '#5a4a3a');
+    outlined(c, [229, 183, 15, 14], (c) => drawFootball(c, 236, 190));
 
     // 바닥: 작은 원뿔 트리와 기둥 등불
     for (const [x, h] of [[18, 36], [44, 28], [244, 34], [126, 26]] as const) {
       L.push(...drawTree(c, r, { cx: x, base: 336, h, w: h * 0.55, tiers: 3, green: '#2f4a2a', dark: '#1e2a1c', orn: [GOLD], ornN: 4, light: [LIGHT], lightN: 14, glowA: 0.06 }));
     }
     for (const lx of [72, 226]) {
-      R(c, lx, 330, 2, 30, '#1a1a1e');
-      R(c, lx - 3, 322, 8, 9, '#1a1a1e');
-      R(c, lx - 2, 323, 6, 7, '#ffd98a');
+      outlined(c, [lx - 4, 319, 10, 42], (c) => {
+        R(c, lx, 330, 2, 30, '#1a1a1e');
+        R(c, lx - 2, 358, 6, 2, '#2a2a30');
+        R(c, lx - 3, 322, 8, 9, '#1a1a1e');
+        R(c, lx - 2, 320, 6, 2, '#2a2a30');
+        R(c, lx - 2, 323, 6, 7, '#ffd98a');
+        R(c, lx + 0.75, 323, PX, 7, '#c9a050');
+        R(c, lx - 2, 323, 2, 2, '#fff4d6');
+      });
       glow(c, lx + 1, 326, 14, '#ffd98a', 0.45);
     }
     return { lights: L, floor: [14, 368, 256, 462], board: { x: 8, y: 132, hang: true } };
@@ -154,6 +175,9 @@ function drawToyTrain(c: Ctx, x: number, y: number): void {
   R(c, x + 1, y + 7, 3, 3, '#2a2228');
   R(c, x + 9, y + 7, 3, 3, '#2a2228');
   R(c, x + 1, y - 4, 4, 3, '#ffe9a8');
+  R(c, x, y, 14, 1, '#f49a62');
+  R(c, x, y + 5, 14, 2, '#b8582a');
+  R(c, x - 1, y - 6, 8, 1, '#b8582a');
 }
 
 function drawPegasus(c: Ctx, x: number, y: number): void {
@@ -163,6 +187,9 @@ function drawPegasus(c: Ctx, x: number, y: number): void {
   R(c, x + 12, y - 7, 4, 3, Wt);
   for (const lx of [x + 1, x + 4, x + 7, x + 10]) R(c, lx, y + 6, 1, 5, '#cfc8b8');
   for (let i = 0; i < 7; i++) R(c, x + 2 + i, y - 1 - i, 6 - i * 0.6, 1, '#fff8ec');
+  R(c, x, y + 4, 12, 2, '#cfc8b8');
+  P(c, x + 14, y - 6, '#2a2228');
+  R(c, x + 9, y - 6, 1, 6, '#d8b860');
 }
 
 function drawTeddy(c: Ctx, x: number, y: number): void {
@@ -172,11 +199,15 @@ function drawTeddy(c: Ctx, x: number, y: number): void {
   R(c, x + 2, y - 7, 2, 2, '#a8743a');
   P(c, x - 1, y - 4, '#2a1f2b');
   P(c, x + 1, y - 4, '#2a1f2b');
+  R(c, x - 1, y - 2, 2, 1, '#d8a870');
+  R(c, x + 2, y, 2, 8, '#8a5a2a');
+  R(c, x - 2, y + 2, 3, 3, '#c8955a');
 }
 
 function drawController(c: Ctx, x: number, y: number): void {
-  R(c, x, 0, 1, y - 6, '#5a4a3a');
   R(c, x - 12, y - 5, 24, 10, '#9a9aa2');
+  R(c, x - 12, y - 5, 24, 1, '#c4c4cc');
+  R(c, x - 12, y + 3, 24, 2, '#7a7a84');
   R(c, x - 14, y - 2, 4, 9, '#9a9aa2');
   R(c, x + 10, y - 2, 4, 9, '#9a9aa2');
   R(c, x - 8, y - 2, 5, 1, '#2a2228');
@@ -185,10 +216,10 @@ function drawController(c: Ctx, x: number, y: number): void {
 }
 
 function drawFootball(c: Ctx, x: number, y: number): void {
-  R(c, x, 0, 1, y - 7, '#5a4a3a');
   for (let dy = -6; dy <= 6; dy++) {
     const hw = Math.round(Math.sqrt(36 - dy * dy));
     R(c, x - hw, y + dy, hw * 2 + 1, 1, '#f4f4f2');
   }
   for (const [dx, dy] of [[0, 0], [-4, -3], [4, -3], [-3, 4], [3, 4]] as const) R(c, x + dx - 1, y + dy - 1, 3, 3, '#2a2228');
+  for (let dy = 1; dy <= 6; dy++) R(c, x + Math.round(Math.sqrt(36 - dy * dy)) - 1.5, y + dy, 1.5, 1, 'rgba(60,60,80,0.35)');
 }

@@ -1,5 +1,5 @@
 // 여러 장면에서 함께 쓰는 소품: 트리, 선물 상자, 가로등, 집, 마켓 부스, 회전목마 등
-import { type Ctx, type Light, type Rand, R, P, mix, pick, glow, line } from './pixel';
+import { type Ctx, PX, type Light, type Rand, R, P, mix, pick, glow, line } from './pixel';
 
 export function drawStar(c: Ctx, x: number, y: number, col: string, big = false): void {
   R(c, x - 1, y - 1, 3, 3, col);
@@ -215,6 +215,10 @@ export function drawChalet(c: Ctx, r: Rand, x: number, base: number, w: number, 
   const L: Light[] = [];
   R(c, x, base - h, w, h, '#8a5a3a');
   for (let px = x + 3; px < x + w; px += 4) R(c, px, base - h, 1, h, '#7a4e32');
+  // 통나무 결: 판자 사이 그늘, 왼쪽 빛, 오른쪽 그늘
+  for (let px = x + 3; px < x + w; px += 4) R(c, px + 1, base - h, PX, h, '#9a6a46');
+  R(c, x, base - h, 1, h, '#a87a52');
+  R(c, x + w - 3, base - h, 3, h, '#6e4428');
   R(c, x + 3, base - h + 5, w - 6, h * 0.42, '#ffcf7a');
   R(c, x + 3, base - h + 5, w - 6, 1, '#c9873a');
   for (let k = 0; k < (w - 8) / 3; k++) {

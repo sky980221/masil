@@ -8,11 +8,19 @@ import { drawLamp, drawLightTree, drawCrowd, drawStar } from '../engine/props';
 import { outlined, courses, ledge, shade, pane } from '../engine/texture';
 import type { Spot } from './types';
 
-// 미디어 파사드 영역 (왼쪽은 화면 밖으로 잘린다)
-const FX = 0;
-const FY = 126;
-const FW = 200;
-const FH = 96;
+// 미디어 파사드 영역: 둥근 모서리를 정면에서 본 모습이라 가운데가 가장 높고 양옆으로 살짝 낮아진다
+const FX = 14;
+const FY = 122;
+const FW = 242;
+const FH = 100;
+const FCX = FX + FW / 2;
+
+/** 파사드 윗변 높이: 가운데 아치 지붕창이 솟고, 양끝으로 갈수록 내려간다 */
+function topY(x: number): number {
+  const dx = Math.abs(x - FCX);
+  const edge = FY + (8 * dx) / (FW / 2);
+  return dx < 18 ? Math.min(edge, FY - 2 - 10 * Math.sqrt(1 - (dx / 18) ** 2)) : edge;
+}
 const ROAD_Y = 256;
 
 export const shinsegae: Spot = {
@@ -26,45 +34,54 @@ export const shinsegae: Spot = {
     const L: Light[] = [];
     vgrad(c, 0, ROAD_Y, '#0b1026', '#1a1e38', 6);
 
-    // 뒤로 솟은 어두운 신관 빌딩
-    R(c, 26, 24, 150, FY, '#1c2340');
-    R(c, 150, 24, 26, FY, '#161c34');
-    for (let y = 29; y < FY; y += 7) R(c, 26, y, 150, PX, '#161b33');
-    for (let x = 32; x < 176; x += 6) R(c, x, 24, PX, FY, 'rgba(10,14,30,0.5)');
-    ledge(c, 25, 23, 152, '#2a3354', 1.5);
-    for (let y = 30; y < FY - 4; y += 7) for (let x = 30; x < 172; x += 6) if (r() < 0.22) R(c, x, y, 3, 4, r() < 0.6 ? '#ffb04a' : '#c9d4ff');
-    R(c, 80, 16, 40, 8, '#141a30');
-    glow(c, 100, 18, 20, '#ff6a6a', 0.25);
-    L.push({ x: 100, y: 19, col: '#ff8a8a', s: 2, p: 0, big: true });
-    // 더 먼 빌딩들
-    R(c, 0, 60, 26, FY, '#141a30');
-    R(c, 176, 50, 40, 90, '#141a30');
-    for (let i = 0; i < 30; i++) {
+    // 더 먼 빌딩들 (왼쪽 불 켜진 유리 빌딩, 오른쪽 낮은 빌딩)
+    R(c, 0, 40, 34, FY, '#141a30');
+    for (let y = 46; y < FY; y += 6) R(c, 3, y, 26, 2, r() < 0.6 ? '#c9d4ff' : '#1c2440');
+    R(c, 206, 70, 64, FY, '#141a30');
+    for (let i = 0; i < 24; i++) {
       c.globalAlpha = 0.6;
-      P(c, r() < 0.5 ? r() * 26 : 176 + r() * 40, 60 + r() * 70, '#ffb04a');
+      P(c, 210 + r() * 56, 76 + r() * 40, '#ffb04a');
     }
     c.globalAlpha = 1;
+    // 파사드 바로 뒤로 솟은 어두운 신관 빌딩 (가운데보다 살짝 오른쪽)
+    const TX0 = 74;
+    const TX1 = 206;
+    R(c, TX0, 24, TX1 - TX0, FY, '#1c2340');
+    R(c, TX1 - 24, 24, 24, FY, '#161c34');
+    for (let y = 29; y < FY; y += 7) R(c, TX0, y, TX1 - TX0, PX, '#161b33');
+    for (let x = TX0 + 6; x < TX1; x += 6) R(c, x, 24, PX, FY, 'rgba(10,14,30,0.5)');
+    ledge(c, TX0 - 1, 23, TX1 - TX0 + 2, '#2a3354', 1.5);
+    for (let y = 30; y < FY - 4; y += 7) for (let x = TX0 + 4; x < TX1 - 4; x += 6) if (r() < (y < 50 ? 0.55 : 0.2)) R(c, x, y, 3, 4, r() < 0.6 ? '#ffb04a' : '#c9d4ff');
+    R(c, 120, 14, 44, 9, '#141a30');
+    R(c, 126, 16, 32, 3, '#e8ecf6');
+    glow(c, 142, 17, 22, '#c9d4ff', 0.25);
 
     // 본관: 파사드 테두리, 가운데 위로 살짝 솟은 빛나는 처마
-    R(c, FX, FY - 8, FW + 6, FH + 16, '#2a2430');
+    for (let x = FX - 4; x < FX + FW + 4; x++) R(c, x, topY(x) - 6, 1, FY + FH + 8 - topY(x) + 6, '#2a2430');
     for (let x = FX; x < FX + FW; x++) {
-      const bulge = Math.round(Math.max(0, 1 - Math.abs(x - 100) / 70) * 6);
-      R(c, x, FY - 6 - bulge, 1, 3, '#ffe6f2');
-      if (x % 3 === 0) L.push({ x, y: FY - 5 - bulge, col: '#fff1f6', s: 1.2, p: x * 0.2 });
+      const ty = Math.round(topY(x));
+      R(c, x, ty - 4, 1, 2, '#ffe6f2');
+      if (x % 3 === 0) L.push({ x, y: ty - 3, col: '#fff1f6', s: 1.2, p: x * 0.2 });
     }
-    glow(c, 100, FY - 6, 70, '#ffd0e0', 0.2);
-    glow(c, FX + FW / 2, FY + FH / 2, 150, '#5070ff', 0.2);
-    // 1층: 따뜻한 유리 상점 띠
-    R(c, FX, FY + FH + 6, FW + 6, 30, '#2a2018');
-    courses(c, FX, FY + FH + 6, FW + 6, 30, '#221a13', 5, 12);
-    for (let x = FX + 2; x < FX + FW; x += 18) {
+    glow(c, FCX, FY - 8, 70, '#ffd0e0', 0.2);
+    glow(c, FCX, FY + FH / 2, 150, '#5070ff', 0.2);
+    // 1층: 따뜻한 유리 상점 띠, 가운데 정문
+    R(c, FX - 4, FY + FH + 6, FW + 8, 30, '#2a2018');
+    courses(c, FX - 4, FY + FH + 6, FW + 8, 30, '#221a13', 5, 12);
+    for (let x = FX + 4; x < FX + FW - 8; x += 18) {
+      if (Math.abs(x + 7 - FCX) < 12) continue;
       pane(c, x, FY + FH + 10, 15, 22, '#ffb04a', '#4a3424', { sill: false });
       R(c, x, FY + FH + 10, 15, 2, '#fff1d6');
       glow(c, x + 7, FY + FH + 22, 14, '#ffb04a', 0.3);
     }
 
     // 오른쪽: 기둥이 선 크림색 석조 건물 (아래에서 따뜻하게 비춘다)
-    const hx = 202;
+    // 정문: 돌 기둥 사이 어두운 유리문
+    R(c, FCX - 12, FY + FH + 8, 24, 28, '#3a3028');
+    pane(c, FCX - 8, FY + FH + 14, 16, 22, '#6a5038', '#8a7a64');
+    glow(c, FCX, FY + FH + 24, 14, '#ffcf8a', 0.25);
+
+    const hx = 258;
     const hy = 142;
     R(c, hx, hy, W - hx, ROAD_Y - hy, '#ede6d6');
     for (let y = hy; y < ROAD_Y; y++) {
@@ -126,8 +143,8 @@ export const shinsegae: Spot = {
     const grid = makeCanvas(W, H);
     const g = grid.getContext('2d')!;
     g.fillStyle = 'rgba(6,6,14,.3)';
-    for (let x = FX; x < FX + FW + 8; x += 1) g.fillRect(x, FY, 0.5, FH);
-    for (let y = FY; y < FY + FH; y += 1) g.fillRect(FX, y, FW + 8, 0.5);
+    for (let x = FX; x < FX + FW; x += 1) g.fillRect(x, FY - 14, 0.5, FH + 14);
+    for (let y = FY - 14; y < FY + FH; y += 1) g.fillRect(FX, y, FW, 0.5);
     const fr = rng(42);
     const flakes = Array.from({ length: 50 }, () => ({ x: fr() * FW, y: fr() * FH, v: 6 + fr() * 10 }));
 
@@ -135,7 +152,7 @@ export const shinsegae: Spot = {
       drawFacade(c, t, flakes, grid);
       drawTraffic(c, t);
     };
-    return { lights: L, floor: [14, 384, 256, 462], board: { x: 200, y: 50 }, animate };
+    return { lights: L, floor: [14, 384, 256, 462], board: { x: 8, y: 54 }, animate };
   },
 };
 
@@ -143,19 +160,19 @@ export const shinsegae: Spot = {
 function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number }[], grid: HTMLCanvasElement): void {
   c.save();
   c.beginPath();
-  c.moveTo(FX, FY);
-  c.lineTo(FX + FW - 14, FY);
-  c.quadraticCurveTo(FX + FW + 6, FY, FX + FW + 6, FY + 20);
-  c.lineTo(FX + FW + 6, FY + FH);
-  c.lineTo(FX, FY + FH);
+  c.moveTo(FX, FY + FH);
+  for (let x = FX; x <= FX + FW; x += 1) c.lineTo(x, topY(x));
+  c.lineTo(FX + FW, FY + FH);
   c.closePath();
   c.clip();
 
   const k = (Math.sin(t * 0.25) + 1) / 2;
-  for (let y = FY; y < FY + FH; y += 2) R(c, FX, y, FW + 6, 2, mix(mix('#0e1a52', '#1e3a8a', k * 0.5), '#2a4aa8', (y - FY) / FH));
+  for (let y = FY - 14; y < FY + FH; y += 2) R(c, FX, y, FW, 2, mix(mix('#0e1a52', '#1e3a8a', k * 0.5), '#2a4aa8', Math.max(0, y - FY) / FH));
   // 흰 대리석 아치와 기둥
-  const cx = FX + 100;
-  for (const x of [cx - 70, cx - 50, cx + 46, cx + 66]) {
+  const cx = FCX;
+  // 가운데 지붕창 테두리
+  for (let a = Math.PI; a <= Math.PI * 2; a += 0.02) R(c, cx + Math.cos(a) * 14, FY + 2 + Math.sin(a) * 9, 1.5, 1.5, '#f2c46b');
+  for (const x of [cx - 104, cx - 84, cx - 70, cx - 50, cx + 46, cx + 66, cx + 80, cx + 100]) {
     R(c, x, FY + 26, 6, FH - 26, '#f2eee6');
     R(c, x + 4, FY + 26, 2, FH - 26, '#c9c2b4');
     R(c, x - 2, FY + 24, 10, 3, '#ffffff');
@@ -166,7 +183,7 @@ function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number
   // 금빛 반짝임
   for (let i = 0; i < 24; i++) {
     const b = (Math.sin(t * 3 + i * 1.7) + 1) / 2;
-    if (b > 0.6) P(c, FX + ((i * 47) % FW), FY + 8 + ((i * 29) % (FH - 16)), '#f2c46b');
+    if (b > 0.6) P(c, FX + ((i * 47) % FW), FY + 4 + ((i * 29) % (FH - 12)), '#f2c46b');
   }
   // 내리는 눈
   for (const f of flakes) R(c, FX + f.x + Math.sin(t + f.x) * 2, FY + ((f.y + t * f.v) % FH), 1, 1, '#ffffff');
