@@ -1,5 +1,5 @@
 import { type Category, type Look, optionKeys, optName } from '../avatar/options';
-import { dayLabel, isUnlocked, lockDay } from '../advent/calendar';
+import { clockNow, dayIndex, dayLabel, isUnlocked, lockDay } from '../advent/calendar';
 import { AvatarCanvas } from './AvatarCanvas';
 
 export interface PickerGroup {
@@ -39,11 +39,14 @@ export function OutfitPicker({ group, look, opened, isNew, onPick }: Props) {
               const day = lockDay(cat, opt);
               const preview = { ...look, [cat]: opt };
               if (!open) {
+                // 그날 열지 못한 선물은 놓친 것으로 표시한다
+                const missed = day! < dayIndex(clockNow());
+                const note = missed ? `${dayLabel(day!)} 놓침` : `${dayLabel(day!)} 공개`;
                 return (
-                  <button key={opt} className="slot locked" disabled aria-label={`${label} 잠김, ${dayLabel(day!)}에 공개`}>
+                  <button key={opt} className="slot locked" disabled aria-label={`${label} 잠김, ${note}`}>
                     <AvatarCanvas look={preview} width={40} height={52} scale={1.5} />
                     <span className="lock">잠김</span>
-                    <span>{dayLabel(day!)} 공개</span>
+                    <span>{note}</span>
                   </button>
                 );
               }

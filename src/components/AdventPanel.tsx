@@ -9,13 +9,13 @@ interface Props {
   onShow: (i: number) => void;
 }
 
-/** 11/15~12/25 선물 달력. 오늘까지의 칸만 열 수 있다. */
+/** 11/15~12/25 선물 달력. 오늘 칸만 열 수 있다. */
 export function AdventPanel({ today, opened, hidden, onOpen, onShow }: Props) {
   return (
     <section id="advent" className="panel px" hidden={hidden} aria-label="선물 달력">
       <div className="panel-title">
         <h2>선물 달력</h2>
-        <p>12월 25일까지 하루에 하나씩 열려요</p>
+        <p>그날의 선물은 그날만 열 수 있어요</p>
       </div>
       <div className="grid">
         {SCHEDULE.map(([cat, opt], i) => {
@@ -28,11 +28,20 @@ export function AdventPanel({ today, opened, hidden, onOpen, onShow }: Props) {
               </button>
             );
           }
-          if (i <= today) {
+          // 선물은 그날만 열 수 있다. 지난 날은 놓친 칸으로 남는다.
+          if (i === today) {
             return (
-              <button key={i} className="cell ready" onClick={() => onOpen(i)} aria-label={`${label} 열 수 있는 선물`}>
+              <button key={i} className="cell ready" onClick={() => onOpen(i)} aria-label={`${label} 오늘의 선물`}>
                 <b>{label}</b>
-                {i === today ? '오늘' : '열기'}
+                오늘
+              </button>
+            );
+          }
+          if (i < today) {
+            return (
+              <button key={i} className="cell missed" disabled aria-label={`${label} 지나간 선물`}>
+                <b>{label}</b>
+                지남
               </button>
             );
           }

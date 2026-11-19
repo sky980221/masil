@@ -62,7 +62,7 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
-  const hasGift = SCHEDULE.some((_, i) => i <= today && !opened.has(i));
+  const hasGift = today >= 0 && today < SCHEDULE.length && !opened.has(today);
   const creating = !name;
   const anyOverlay = creating || wardrobeOpen || !!reveal || !!photo;
 

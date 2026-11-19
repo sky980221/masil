@@ -114,6 +114,7 @@ nav.spots button[aria-pressed='true'] { background: var(--ink); color: var(--pap
 .cell b { font-weight: 400; font-size: 11px; }
 .cell.open { background: #f7e3a8; }
 .cell.ready { background: var(--red); color: #fff8ec; }
+.cell.missed { background: var(--paper-lo); color: var(--ink-soft); box-shadow: none; top: 2px; text-decoration: line-through; }
 .cell.locked { background: var(--paper-lo); color: var(--ink-soft); box-shadow: none; top: 2px; }
 
 .room { grid-area: room; }
