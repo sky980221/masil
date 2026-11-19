@@ -1,7 +1,9 @@
 // 영종 파라다이스시티 플라자: 높은 실내 광장. 어두운 슬랫 천장과 유리 띠, 베이지 석조 아케이드,
 // 빨간 기차역 건물 위에 선 트리, 공중 와이어를 타고 트리 둘레를 도는 장난감 기차, 빨강·크림 마켓 부스.
-import { type Ctx, type Light, type WallPainter, W, H, R, P, mix, hash, vgrad, glow, line, perspWall, perspFloor } from '../engine/pixel';
+import { type Ctx, type Light, type WallPainter, W, H, R, P, PX, mix, hash, vgrad, glow, line, perspWall, perspFloor } from '../engine/pixel';
 import { drawTree, drawChalet } from '../engine/props';
+import { outlined, bricks, shade, ledge, pane } from '../engine/texture';
+import { sprite } from '../engine/sprite';
 import type { Spot, TrainTrack } from './types';
 
 const RED = '#c8202a';
@@ -56,6 +58,9 @@ export const yeongjong: Spot = {
       const f = u * 2.6 - id;
       R(c, X, ya, 1, h, mix(STONE, STONE_D, (1 - s) * 0.6));
       R(c, X, ya, 1, Math.max(1, s * 2), '#dcc9ad');
+      // 석재 줄눈
+      for (let j = 1; j < 7; j++) R(c, X, ya + (h * j) / 7, 1, PX, 'rgba(110,86,60,0.35)');
+      if (Math.floor(u * 16) !== Math.floor((u + 0.006) * 16)) R(c, X, ya, 1, h, 'rgba(110,86,60,0.25)');
       if (k < 3) {
         if (f > 0.25 && f < 0.75) R(c, X, ya + h * 0.18, 1, h * 0.62, '#3a3540');
       } else if (f > 0.12 && f < 0.88) {
@@ -95,35 +100,45 @@ export const yeongjong: Spot = {
     const bx = 93;
     const bw = 84;
     const by = 264;
-    R(c, bx, by, bw, 318 - by, RED);
-    R(c, bx + bw - 10, by, 10, 318 - by, RED_D);
-    R(c, bx - 3, by - 4, bw + 6, 5, CREAM);
-    R(c, bx - 3, by - 5, bw + 6, 1, GOLD);
-    for (const px of [bx, bx + 20, bx + bw - 24, bx + bw - 4]) R(c, px, by + 1, 4, 318 - by - 1, CREAM);
-    const ax = bx + bw / 2;
-    for (let dy = 0; dy < 16; dy++) {
-      const hw = Math.round(Math.sqrt(256 - (16 - dy) ** 2) * 0.95);
-      R(c, ax - hw, by + 10 + dy, hw * 2, 1, dy < 8 ? '#ffe2a6' : '#ffcf8a');
-    }
-    R(c, ax - 15, by + 26, 30, 318 - by - 26, '#ffcf8a');
-    for (let a = 0; a < Math.PI + 0.01; a += Math.PI / 6) line(c, ax, by + 26, ax + Math.cos(a) * 14, by + 26 - Math.sin(a) * 14, GOLD);
-    R(c, ax - 16, by + 26, 32, 1, GOLD);
-    glow(c, ax, by + 36, 30, '#ffcf7a', 0.4);
-    for (const wx of [bx + 7, bx + bw - 16]) {
-      R(c, wx, by + 18, 9, 20, '#ffd98a');
-      R(c, wx + 1, by + 16, 7, 2, '#ffd98a');
-      R(c, wx + 4, by + 16, 1, 22, GOLD);
-    }
-    // 시계
-    for (let dy = -5; dy <= 5; dy++) {
-      const hw = Math.round(Math.sqrt(25 - dy * dy));
-      R(c, ax - hw, by - 12 + dy, hw * 2 + 1, 1, CREAM);
-    }
-    P(c, ax, by - 15, RED_D);
-    P(c, ax, by - 14, RED_D);
-    P(c, ax + 1, by - 12, RED_D);
-    P(c, ax + 2, by - 12, RED_D);
-    R(c, ax - 6, by - 18, 13, 1, GOLD);
+    outlined(c, [bx - 4, by - 19, bw + 8, 318 - by + 19], (c) => {
+      R(c, bx, by, bw, 318 - by, RED);
+      bricks(c, bx, by, bw, 318 - by, '#8e1a22', 3, 6);
+      shade(c, bx, by, bw, 318 - by, { dark: 0 });
+      R(c, bx + bw - 10, by, 10, 318 - by, RED_D);
+      bricks(c, bx + bw - 10, by, 10, 318 - by, '#6a1219', 3, 6);
+      R(c, bx - 3, by - 4, bw + 6, 5, CREAM);
+      R(c, bx - 3, by - 5, bw + 6, 1, GOLD);
+      ledge(c, bx - 3, by - 4, bw + 6, CREAM, 4);
+      for (const px of [bx, bx + 20, bx + bw - 24, bx + bw - 4]) {
+        R(c, px, by + 1, 4, 318 - by - 1, CREAM);
+        R(c, px + 3, by + 1, 1, 318 - by - 1, '#d8c8a4');
+        R(c, px - 0.5, by + 1, 5, 1.5, '#fff4dc');
+      }
+      const ax = bx + bw / 2;
+      for (let dy = 0; dy < 16; dy++) {
+        const hw = Math.round(Math.sqrt(256 - (16 - dy) ** 2) * 0.95);
+        R(c, ax - hw, by + 10 + dy, hw * 2, 1, dy < 8 ? '#ffe2a6' : '#ffcf8a');
+      }
+      R(c, ax - 15, by + 26, 30, 318 - by - 26, '#ffcf8a');
+      for (let a = 0; a < Math.PI + 0.01; a += Math.PI / 6) line(c, ax, by + 26, ax + Math.cos(a) * 14, by + 26 - Math.sin(a) * 14, GOLD);
+      R(c, ax - 16, by + 26, 32, 1, GOLD);
+      glow(c, ax, by + 36, 30, '#ffcf7a', 0.4);
+      for (const wx of [bx + 7, bx + bw - 16]) {
+        R(c, wx + 0.5, by + 15.5, 8, 2.5, '#5a1218');
+        R(c, wx + 1, by + 16, 7, 2, '#ffd98a');
+        pane(c, wx, by + 18, 9, 20, '#ffd98a', GOLD);
+      }
+      // 시계
+      for (let dy = -5; dy <= 5; dy++) {
+        const hw = Math.round(Math.sqrt(25 - dy * dy));
+        R(c, ax - hw, by - 12 + dy, hw * 2 + 1, 1, CREAM);
+      }
+      P(c, ax, by - 15, RED_D);
+      P(c, ax, by - 14, RED_D);
+      P(c, ax + 1, by - 12, RED_D);
+      P(c, ax + 2, by - 12, RED_D);
+      R(c, ax - 6, by - 18, 13, 1, GOLD);
+    });
 
     // 트리: 좁고 높은 원뿔, 따뜻한 흰 전구, 빨간 공과 리본, 금색 별
     L.push(...drawTree(c, r, {
@@ -139,10 +154,10 @@ export const yeongjong: Spot = {
     }
 
     // 빨강·크림 마켓 부스와 산타·사슴 인형
-    L.push(...drawChalet(c, r, 6, 372, 44, 30, RED));
-    L.push(...drawChalet(c, r, 220, 372, 44, 30, RED));
-    drawSanta(c, 58, 372);
-    drawDeer(c, 206, 372);
+    L.push(...outlined(c, [2, 333, 52, 39], (c) => drawChalet(c, r, 6, 372, 44, 30, RED)));
+    L.push(...outlined(c, [216, 333, 52, 39], (c) => drawChalet(c, r, 220, 372, 44, 30, RED)));
+    sprite(c, 'santa', 58, 372, () => drawSanta(c, 58, 372));
+    sprite(c, 'deer', 206, 372, () => drawDeer(c, 206, 372));
 
     // 트리 둘레 공중 와이어 두 줄 (기차는 매 프레임 따로 그린다)
     const tracks: TrainTrack[] = [

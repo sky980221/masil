@@ -3,8 +3,9 @@
 // 그 아래 따뜻한 1층 상점, 뒤로 어두운 신관 빌딩, 오른쪽엔 기둥이 선 크림색 석조 건물.
 // 앞은 차가 도는 넓은 도로와 둥근 분수, 휴대폰을 든 인파.
 // 파사드 영상은 실제 콘텐츠를 옮기지 않고, 빨강·금색·흰 대리석·짙은 파랑 분위기만 따서 새로 만들었다.
-import { type Ctx, type Light, W, H, R, P, mix, hash, rng, vgrad, glow, perspFloor, makeCanvas } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, hash, rng, vgrad, glow, perspFloor, makeCanvas } from '../engine/pixel';
 import { drawLamp, drawLightTree, drawCrowd, drawStar } from '../engine/props';
+import { outlined, courses, ledge, shade, pane } from '../engine/texture';
 import type { Spot } from './types';
 
 // 미디어 파사드 영역 (왼쪽은 화면 밖으로 잘린다)
@@ -28,6 +29,9 @@ export const shinsegae: Spot = {
     // 뒤로 솟은 어두운 신관 빌딩
     R(c, 26, 24, 150, FY, '#1c2340');
     R(c, 150, 24, 26, FY, '#161c34');
+    for (let y = 29; y < FY; y += 7) R(c, 26, y, 150, PX, '#161b33');
+    for (let x = 32; x < 176; x += 6) R(c, x, 24, PX, FY, 'rgba(10,14,30,0.5)');
+    ledge(c, 25, 23, 152, '#2a3354', 1.5);
     for (let y = 30; y < FY - 4; y += 7) for (let x = 30; x < 172; x += 6) if (r() < 0.22) R(c, x, y, 3, 4, r() < 0.6 ? '#ffb04a' : '#c9d4ff');
     R(c, 80, 16, 40, 8, '#141a30');
     glow(c, 100, 18, 20, '#ff6a6a', 0.25);
@@ -52,8 +56,9 @@ export const shinsegae: Spot = {
     glow(c, FX + FW / 2, FY + FH / 2, 150, '#5070ff', 0.2);
     // 1층: 따뜻한 유리 상점 띠
     R(c, FX, FY + FH + 6, FW + 6, 30, '#2a2018');
+    courses(c, FX, FY + FH + 6, FW + 6, 30, '#221a13', 5, 12);
     for (let x = FX + 2; x < FX + FW; x += 18) {
-      R(c, x, FY + FH + 10, 15, 22, '#ffb04a');
+      pane(c, x, FY + FH + 10, 15, 22, '#ffb04a', '#4a3424', { sill: false });
       R(c, x, FY + FH + 10, 15, 2, '#fff1d6');
       glow(c, x + 7, FY + FH + 22, 14, '#ffb04a', 0.3);
     }
@@ -69,11 +74,18 @@ export const shinsegae: Spot = {
     c.globalAlpha = 1;
     R(c, hx - 2, hy - 6, W - hx + 2, 6, '#d8cfbc');
     R(c, hx - 2, hy, W - hx + 2, 2, '#b9a98a');
+    courses(c, hx, hy, W - hx, ROAD_Y - hy, 'rgba(150,130,100,0.35)', 6, 22);
+    ledge(c, hx - 2, hy - 6, W - hx + 2, '#efe7d4', 2);
     for (let x = hx + 4; x < W; x += 11) {
       R(c, x, hy + 6, 5, ROAD_Y - hy - 22, '#f6f1e6');
+      R(c, x, hy + 6, 1, ROAD_Y - hy - 22, '#ffffff');
       R(c, x + 4, hy + 6, 1, ROAD_Y - hy - 22, '#b9a98a');
+      // 기둥머리와 받침
+      R(c, x - 1, hy + 6, 7, 2, '#e4dac4');
+      R(c, x - 1, ROAD_Y - 18, 7, 2, '#d8cdb4');
     }
-    for (let y = hy + 10; y < ROAD_Y - 22; y += 12) for (let x = hx + 10; x < W; x += 11) R(c, x, y, 4, 6, r() < 0.7 ? '#ffb04a' : '#5a4a3a');
+    for (let y = hy + 10; y < ROAD_Y - 22; y += 12)
+      for (let x = hx + 10; x < W; x += 11) pane(c, x, y, 4, 6, r() < 0.7 ? '#ffb04a' : '#5a4a3a', '#a8987a', { cross: false });
     glow(c, 236, ROAD_Y - 10, 50, '#ffcf8a', 0.3);
 
     // 넓은 도로, 횡단보도, 그 앞 분수 로터리와 인도
@@ -91,8 +103,13 @@ export const shinsegae: Spot = {
       const hw = 46 * Math.sqrt(1 - (dy / 12) ** 2);
       R(c, fcx - hw, fcy + dy, hw * 2, 1, dy < -9 ? '#c9c2b4' : dy < 6 ? '#3a5470' : '#9a9284');
     }
-    R(c, fcx - 5, fcy - 22, 10, 22, '#c9c2b4');
-    R(c, fcx - 9, fcy - 26, 18, 4, '#d8d1c2');
+    outlined(c, [fcx - 9, fcy - 26, 18, 26], (c) => {
+      R(c, fcx - 5, fcy - 22, 10, 22, '#c9c2b4');
+      shade(c, fcx - 5, fcy - 22, 10, 22, { dark: 3 });
+      R(c, fcx - 9, fcy - 26, 18, 4, '#d8d1c2');
+      R(c, fcx - 9, fcy - 26, 18, PX, '#f0ebe0');
+      R(c, fcx - 9, fcy - 22.5, 18, PX, '#9a9284');
+    });
     glow(c, fcx, fcy - 6, 40, '#9fc0ff', 0.2);
 
     L.push(...drawLightTree(c, r, 128, 344, 100), ...drawLightTree(c, r, 258, 344, 96));

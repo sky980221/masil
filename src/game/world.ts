@@ -6,6 +6,7 @@ import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
 import type { ActKind, ActPayload, Emote, PeerState } from '../net/protocol';
 import { drawBoard } from './board';
 import { Lighting } from './lighting';
+import { spritesReady } from '../engine/sprite';
 
 export interface Walker extends AvatarPose {
   tx: number;
@@ -93,6 +94,14 @@ interface FarWalker {
 
 const MY_SPEED = 55;
 
+/** 장소 배경을 한 번 구워 둔다 (빛 번짐 위치도 함께 모은다) */
+function bake(spot: Spot): { bg: HTMLCanvasElement; scene: SceneBuild; glows: Glow[] } {
+  const bg = makeCanvas(W, H);
+  const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77)));
+  posterize(bg.getContext('2d')!);
+  return { bg, scene, glows };
+}
+
 export class World {
   spot!: Spot;
   scene!: SceneBuild;
@@ -120,6 +129,15 @@ export class World {
   constructor(look: Look, spotIndex: number) {
     this.me = { x: 135, y: 420, tx: 135, ty: 420, dir: 0, moving: false, seed: 3, look, wait: 0, speed: MY_SPEED };
     this.setSpot(spotIndex);
+    // 픽셀 그림(PNG)이 다 불러지면 배경을 다시 굽는다. 자리와 사람은 그대로 둔다.
+    void spritesReady.then(() => {
+      this.cache.clear();
+      const hit = bake(this.spot);
+      this.cache.set(this.spot.key, hit);
+      this.bg = hit.bg;
+      this.scene = hit.scene;
+      this.glows = hit.glows;
+    });
   }
 
   setSpot(i: number): void {
@@ -128,10 +146,7 @@ export class World {
     // 배경은 장소마다 한 번만 그려 둔다
     let hit = this.cache.get(spot.key);
     if (!hit) {
-      const bg = makeCanvas(W, H);
-      const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77)));
-      posterize(bg.getContext('2d')!);
-      hit = { bg, scene, glows };
+      hit = bake(spot);
       this.cache.set(spot.key, hit);
     }
     this.bg = hit.bg;

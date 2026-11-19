@@ -1,8 +1,9 @@
 // 명동 롯데백화점 본점: 넓고 평평한 베이지 석조 건물 위를 따뜻한 전구 선으로 그린 고전풍 외관.
 // 층층이 둥근 창, 계단식 기둥 탑, 1층 위 반원 아치 줄, 부채꼴 장식. 왼쪽엔 리본·선물 간판,
 // 오른쪽 둥근 모서리엔 남색 LED 화면, 가장자리엔 금색 원뿔 트리. 앞은 넓은 인도와 소나무, 인파.
-import { type Ctx, type Light, W, H, R, P, mix, vgrad, glow, line, perspFloor } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, vgrad, glow, line, perspFloor } from '../engine/pixel';
 import { drawTree, drawLamp, drawCrowd, drawStar } from '../engine/props';
+import { courses, ledge, shade, pane } from '../engine/texture';
 import type { Spot } from './types';
 
 const BULB = '#ffe9c4';
@@ -53,6 +54,9 @@ export const myeongdong: Spot = {
     vgrad(c, 0, BASE, '#0a0a0a', '#15100d', 4);
     for (const [x, w, h] of [[0, 40, 150], [36, 46, 120], [150, 50, 170], [196, 74, 140]] as const) {
       R(c, x, TOP - h + 80, w, h, '#221a14');
+      courses(c, x, TOP - h + 80, w, h, '#1a140f', 8, 16);
+      ledge(c, x - 1, TOP - h + 79, w + 2, '#3a2e24', 1.5);
+      shade(c, x, TOP - h + 80, w, h, { dark: 4 });
       for (let i = 0; i < (w * h) / 90; i++) {
         c.globalAlpha = 0.5;
         P(c, x + 2 + r() * (w - 4), TOP - h + 84 + r() * (h - 10), r() < 0.7 ? '#6a5a44' : '#ffd98a');
@@ -73,8 +77,14 @@ export const myeongdong: Spot = {
       R(c, 0, y, MAIN_R, 1, STONE_LIT);
     }
     c.globalAlpha = 1;
-    for (let y = TOP + 6; y < GROUND; y += 9) for (let x = 4; x < MAIN_R; x += 7) R(c, x, y, 3, 4, '#5e4532');
-    R(c, 0, TOP - 3, MAIN_R, 3, '#8a6a4e');
+    courses(c, 0, TOP, MAIN_R, GROUND - TOP, 'rgba(60,40,26,0.45)', 9, 21);
+    for (let y = TOP + 6; y < GROUND; y += 9)
+      for (let x = 4; x < MAIN_R; x += 7) {
+        R(c, x, y, 3, 4, '#4e3828');
+        R(c, x, y, 3, PX, '#3a2a1e');
+        R(c, x, y + 4, 3, PX, 'rgba(255,220,170,0.25)');
+      }
+    ledge(c, 0, TOP - 3, MAIN_R, '#9a7a5a', 3);
     bulbLine(0, TOP - 2, MAIN_R, TOP - 2, 3);
 
     // 계단식 기둥 탑 (전구로 그린 작은 직사각형 더미)
@@ -120,10 +130,19 @@ export const myeongdong: Spot = {
 
     // 1층: 낮고 어두운 줄에 빨간 차양, 빛나는 쇼윈도
     R(c, 0, GROUND, MAIN_R, BASE - GROUND, '#2a2018');
+    courses(c, 0, GROUND, MAIN_R, BASE - GROUND, '#221a13', 5, 13);
     for (let x = 4; x < MAIN_R - 10; x += 26) {
-      R(c, x, GROUND + 9, 20, BASE - GROUND - 12, WINDOW);
+      pane(c, x, GROUND + 9, 20, BASE - GROUND - 12, WINDOW, '#4a3a2c', { sill: false, cross: false });
+      R(c, x + 6.5, GROUND + 9, PX, BASE - GROUND - 12, '#b8aa90');
+      R(c, x + 13.5, GROUND + 9, PX, BASE - GROUND - 12, '#b8aa90');
       glow(c, x + 10, GROUND + 18, 16, '#ffe2b0', 0.3);
-      for (let k = 0; k < 20; k += 4) R(c, x + k, GROUND + 4, 4, 5, k % 8 ? AWNING : '#6e262a');
+      for (let k = 0; k < 20; k += 4) {
+        const col = k % 8 ? AWNING : '#6e262a';
+        R(c, x + k, GROUND + 3, 4, 5, col);
+        R(c, x + k + 0.5, GROUND + 8, 3, 1, col);
+      }
+      R(c, x, GROUND + 3, 20, PX, 'rgba(255,200,180,0.35)');
+      R(c, x + 1, GROUND + 9, 18, 1, 'rgba(10,0,0,0.35)');
       R(c, x + 3, BASE - 10, 5, 6, RIBBON);
       R(c, x + 12, BASE - 9, 4, 5, '#3f6fb6');
     }
@@ -133,12 +152,15 @@ export const myeongdong: Spot = {
       const f = (x - MAIN_R) / (W - MAIN_R);
       R(c, x, TOP + 6, 1, BASE - TOP - 6, mix(STONE_LIT, '#4a3628', f * 0.8));
     }
+    courses(c, MAIN_R, TOP + 6, W - MAIN_R, BASE - TOP - 6, 'rgba(50,34,22,0.4)', 9, 12);
     bulbLine(MAIN_R, TOP + 4, W, TOP + 10, 3);
     const SX = MAIN_R + 8;
     const SY = TOP + 30;
     const SW = W - SX - 6;
     const SH = 110;
-    R(c, SX - 2, SY - 2, SW + 4, SH + 4, '#2a2018');
+    R(c, SX - 3, SY - 3, SW + 6, SH + 6, '#1a130e');
+    R(c, SX - 2, SY - 2, SW + 4, SH + 4, '#3a2c20');
+    R(c, SX - 2, SY - 2, SW + 4, PX, '#6a5440');
     R(c, SX, SY, SW, SH, NAVY);
     glow(c, SX + SW / 2, SY + SH / 2, 50, '#6a9ad0', 0.25);
 
@@ -148,6 +170,7 @@ export const myeongdong: Spot = {
     for (let x = 6; x < W; x += 18) {
       R(c, x, 338, 3, 10, '#15110e');
       R(c, x, 337, 3, 1, '#4a4038');
+      R(c, x, 338, PX, 10, '#3a322a');
     }
     R(c, 0, 342, W, 1, '#2a2420');
 

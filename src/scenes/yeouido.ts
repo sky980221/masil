@@ -1,8 +1,10 @@
 // 여의도 더현대 서울: 하얀 천 패널이 뒤집힌 피라미드처럼 매달린 천장(접힌 선마다 빨간 줄)과 사이사이 유리 띠,
 // 하얀 S자 곡선 발코니(유리 난간 + 나무 손잡이), 벽돌 무늬 바닥.
 // 가운데엔 금색 구슬 갈랜드가 크게 늘어진 넓은 트리, 뒤엔 유리 새장 돔, 한쪽엔 빨간 계단식 박공 집.
-import { type Ctx, type Light, type WallPainter, W, H, R, P, mix, hash, glow, line, perspWall, perspFloor } from '../engine/pixel';
+import { type Ctx, type Light, type WallPainter, W, H, R, P, PX, mix, hash, glow, line, perspWall, perspFloor } from '../engine/pixel';
 import { drawTree, drawStar } from '../engine/props';
+import { outlined, bricks, shade, ledge, pane } from '../engine/texture';
+import { sprite } from '../engine/sprite';
 import type { Spot } from './types';
 
 const CEIL = '#ecedee';
@@ -101,14 +103,29 @@ export const yeouido: Spot = {
     perspWall(c, 'R', vp, 96, 132, 360, 4, mall);
 
     // 한쪽: 빨간 계단식 박공 집 (둥근 창, 초록 문 장식)
-    drawGableHouse(c, 18, 334, L);
+    if (sprite(c, 'gableHouse', 18 + 26, 334, () => outlined(c, [11, 226, 66, 108], (c) => drawGableHouse(c, 18, 334, L)))) {
+      for (const wx of [27, 58]) L.push({ x: wx, y: 288, col: '#fff6c8', s: 0.6, p: wx });
+      glow(c, 18 + 26, 318, 22, '#ffcf7a', 0.3);
+    }
     // 다른 쪽: 차양 달린 벽돌 상점
     for (const [x, w] of [[206, 30], [234, 34]] as const) {
-      R(c, x, 296, w, 40, '#9a4a3a');
-      for (let y = 298; y < 336; y += 4) R(c, x, y, w, 1, '#8a3e30');
-      R(c, x + 4, 314, w - 8, 18, '#ffd98a');
-      glow(c, x + w / 2, 322, 16, '#ffcf7a', 0.3);
-      for (let i = 0; i < w; i += 4) R(c, x + i, 306, 4, 6, (i / 4) % 2 ? '#f4f1ea' : '#2f6b4f');
+      outlined(c, [x - 1, 292, w + 2, 44], (c) => {
+        R(c, x, 296, w, 40, '#9a4a3a');
+        bricks(c, x, 296, w, 40, '#843a2d');
+        shade(c, x, 296, w, 40);
+        ledge(c, x - 1, 294, w + 2, '#e9dcc4', 2);
+        pane(c, x + 4, 314, w - 8, 18, '#ffd98a', '#5a2a1e', { sill: false });
+        glow(c, x + w / 2, 322, 16, '#ffcf7a', 0.3);
+        // 줄무늬 차양: 아래 가장자리를 물결로, 그림자 한 줄
+        for (let i = 0; i < w; i += 4) {
+          const col = (i / 4) % 2 ? '#f4f1ea' : '#2f6b4f';
+          R(c, x + i, 306, 4, 5, col);
+          R(c, x + i + 0.5, 311, 3, 1, col);
+        }
+        R(c, x, 306, w, PX, 'rgba(255,255,255,0.4)');
+        R(c, x + 1, 312, w - 2, 1, 'rgba(30,10,30,0.3)');
+        R(c, x, 334, w, 2, '#5a2a1e');
+      });
     }
 
     // 트리: 넓고 꽉 찬 원뿔, 금색 구슬 갈랜드가 크게 늘어지고 빨간 공·곰·별·달 장식
@@ -140,10 +157,19 @@ export const yeouido: Spot = {
 
     // 밑동 주변: 빨간 선물 더미와 빨간 모자 곰 인형, 흰 북극곰, 인공 눈 둔덕
     for (const [x, y] of [[70, 340], [196, 340]] as const) {
-      for (let k = 0; k < 4; k++) R(c, x - 10 + k * 6, y - 8 - (k % 2) * 4, 7, 8 + (k % 2) * 4, k % 2 ? RED : '#a81820');
-      drawTeddy(c, x + 8, y);
+      outlined(c, [x - 10, y - 20, 34, 20], (c) => {
+        for (let k = 0; k < 4; k++) {
+          const gx = x - 10 + k * 6;
+          const gh = 8 + (k % 2) * 4;
+          R(c, gx, y - gh, 7, gh, k % 2 ? RED : '#a81820');
+          R(c, gx + 3, y - gh, 1, gh, '#f3d27a');
+          R(c, gx, y - gh, 7, PX, 'rgba(255,255,255,0.3)');
+          R(c, gx + 5.5, y - gh, 1.5, gh, 'rgba(30,10,30,0.25)');
+        }
+        drawTeddy(c, x + 8, y);
+      });
     }
-    drawPolarBear(c, 226, 356);
+    outlined(c, [212, 338, 30, 18], (c) => drawPolarBear(c, 226, 356));
     for (const [x, w] of [[40, 40], [104, 24], [176, 30]] as const) {
       for (let i = 0; i < 4; i++) R(c, x - w / 2 + i * 2, 346 - i, w - i * 4, 1, '#f8fafc');
     }
@@ -198,7 +224,10 @@ function drawDrum(c: Ctx, x: number, y: number): void {
 function drawTeddy(c: Ctx, x: number, base: number): void {
   R(c, x - 4, base - 9, 8, 9, '#a8743a');
   R(c, x - 3, base - 15, 6, 6, '#a8743a');
+  R(c, x + 2, base - 9, 2, 9, '#8a5a2a');
+  R(c, x - 1, base - 7, 2, 3, '#c8955a');
   R(c, x - 4, base - 18, 8, 3, RED);
+  R(c, x - 4, base - 16, 8, 1, '#ffffff');
   P(c, x + 3, base - 19, '#ffffff');
   P(c, x - 1, base - 13, '#2a1f2b');
   P(c, x + 1, base - 13, '#2a1f2b');
@@ -211,4 +240,7 @@ function drawPolarBear(c: Ctx, x: number, base: number): void {
   P(c, x + 14, base - 13, '#2a1f2b');
   P(c, x + 15, base - 11, '#2a1f2b');
   R(c, x - 12, base - 12, 22, 1, '#ffffff');
+  R(c, x - 12, base - 5, 22, 2, '#d9dfe7');
+  R(c, x + 9, base - 17, 2, 2, '#f4f6f8');
+  P(c, x + 9.5, base - 16.5, '#d9dfe7');
 }

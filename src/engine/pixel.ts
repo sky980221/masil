@@ -135,6 +135,20 @@ export interface Glow {
   a: number;
 }
 let glowSink: Glow[] | null = null;
+let glowDefer: [number, number, number, string, number][] | null = null;
+
+/** draw 동안 부른 glow()를 모아 두었다가 돌려준다 (외곽선 임시 캔버스용) */
+export function deferGlows(draw: () => void): [number, number, number, string, number][] {
+  const prev = glowDefer;
+  const list: [number, number, number, string, number][] = [];
+  glowDefer = list;
+  try {
+    draw();
+  } finally {
+    glowDefer = prev;
+  }
+  return list;
+}
 
 export function collectGlows<T>(draw: () => T): { result: T; glows: Glow[] } {
   const prev = glowSink;
@@ -149,6 +163,11 @@ export function collectGlows<T>(draw: () => T): { result: T; glows: Glow[] } {
 
 /** 빛 번짐. 'lighter' 합성으로 부드럽게 더한다. 장면을 그리는 중이면 광원으로도 기록한다. */
 export function glow(c: Ctx, x: number, y: number, rad: number, col: string, a: number): void {
+  // 외곽선용 임시 캔버스에 그리는 중이면 빛 번짐은 미뤘다가 본 캔버스에 그린다
+  if (glowDefer) {
+    glowDefer.push([x, y, rad, col, a]);
+    return;
+  }
   glowSink?.push({ x, y, r: rad, a });
   c.save();
   c.globalCompositeOperation = 'lighter';

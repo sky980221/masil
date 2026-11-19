@@ -1,8 +1,9 @@
 // 잠실 롯데월드몰 월드파크 크리스마스 마켓: 나무 데크 광장 가운데 빨간 하트를 단 트리,
 // 왼쪽엔 둥근 몰 건물과 2층 회전목마, 오른쪽 뒤로 매끈한 유리 원뿔 타워와 하얀 고깔 텐트,
 // 가장자리를 가로지르는 전구 줄, 하얀 구형 가로등, 소나무 실루엣, 인공 눈.
-import { type Ctx, type Light, W, H, R, P, mix, vgrad, glow, line, perspFloor, reflect } from '../engine/pixel';
+import { type Ctx, type Light, W, H, R, P, PX, mix, vgrad, glow, line, perspFloor, reflect } from '../engine/pixel';
 import { drawTree, drawCrowd, drawStar } from '../engine/props';
+import { outlined, shade } from '../engine/texture';
 import type { Spot } from './types';
 
 const BULB = '#ffe7a3';
@@ -88,9 +89,9 @@ export const jamsil: Spot = {
     c.globalAlpha = 1;
 
     // 오른쪽 뒤 크림색 서커스 텐트 파빌리온, 앞쪽 하얀 고깔 텐트들
-    drawPavilion(c, 222, 292, bulb);
-    drawTent(c, 176, 318, 34, bulb);
-    drawTent(c, 226, 340, 42, bulb);
+    outlined(c, [180, 232, 88, 62], (c) => drawPavilion(c, 222, 292, bulb));
+    outlined(c, [155, 285, 42, 34], (c) => drawTent(c, 176, 318, 34, bulb));
+    outlined(c, [201, 302, 50, 39], (c) => drawTent(c, 226, 340, 42, bulb));
 
     // 트리: 좁은 원뿔, 따뜻한 흰 전구와 빨간 하트, 하얀 별
     const TREE = { cx: 128, base: 322, h: 232, w: 124 };
@@ -111,7 +112,7 @@ export const jamsil: Spot = {
     }
 
     // 2층 회전목마
-    L.push(...drawCarousel2(c, 46, 352, bulb));
+    L.push(...outlined(c, [4, 230, 86, 123], (c) => drawCarousel2(c, 46, 352, bulb)));
 
     // 가장자리를 가로지르는 전구 줄
     const festoons: [number, number, number, number][] = [[0, 196, 120, 214], [120, 214, 270, 190], [0, 236, 96, 250], [176, 250, 270, 232]];
@@ -153,7 +154,10 @@ function drawHeart(c: Ctx, x: number, y: number): void {
 function drawTent(c: Ctx, cx: number, base: number, w: number, bulb: (x: number, y: number) => void): void {
   const h = Math.round(w * 0.55);
   R(c, cx - w / 2, base - h, w, h, '#efe9dc');
+  shade(c, cx - w / 2, base - h, w, h, { dark: 3 });
   R(c, cx - w / 2 + 3, base - h + 6, w - 6, h - 8, '#ffcf8a');
+  R(c, cx - 0.25, base - h + 6, PX, h - 8, '#e0a860');
+  R(c, cx - w / 2 + 3, base - h + 6, w - 6, PX, '#c9873a');
   glow(c, cx, base - h / 2, w * 0.6, '#ffcf8a', 0.25);
   for (let i = 0; i < 12; i++) {
     const ww = w + 4 - i * (w / 12);
@@ -173,7 +177,10 @@ function drawPavilion(c: Ctx, cx: number, base: number, bulb: (x: number, y: num
   const w = 76;
   R(c, cx - w / 2, base - 24, w, 24, CREAM);
   for (let x = cx - w / 2; x < cx + w / 2; x += 8) R(c, x, base - 24, 4, 24, '#e8dcc0');
+  shade(c, cx - w / 2, base - 24, w, 24, { dark: 4 });
   R(c, cx - 10, base - 18, 20, 18, '#ffcf8a');
+  R(c, cx - 10, base - 18, 20, PX, '#c9873a');
+  R(c, cx - 0.25, base - 18, PX, 18, '#e0a860');
   for (let i = 0; i < 26; i++) {
     const ww = w + 8 - i * 3;
     for (let x = 0; x < ww; x++) P(c, cx - ww / 2 + x, base - 25 - i, Math.floor((x / ww) * 12) % 2 ? CREAM : '#e0d0b0');
@@ -190,6 +197,8 @@ function drawCarousel2(c: Ctx, cx: number, base: number, bulb: (x: number, y: nu
   R(c, cx - 40, base - 6, 82, 1, '#f4f1ea');
   // 1층 바닥과 기둥, 말
   R(c, cx - 34, base - 12, 68, 5, '#b8873e');
+  R(c, cx - 34, base - 12, 68, PX, '#e0b060');
+  R(c, cx - 34, base - 8, 68, 1, '#8a6228');
   for (const k of [-28, -16, -4, 8, 20, 30]) {
     R(c, cx + k, base - 50, 1, 38, '#e8d08a');
     const hy = base - 22 - ((k + 40) % 3) * 4;
