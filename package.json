@@ -1,0 +1,26 @@
+{
+  "name": "masil",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "누워서 가는 트리 명소 — 픽셀 아바타로 크리스마스 트리 명소를 돌아다니는 웹 서비스",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vitest": "2.1.8"
+  }
+}
