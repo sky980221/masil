@@ -26,22 +26,23 @@ npm run dev
 | `npm run dev` | 개발 서버 |
 | `npm run build` | 타입 검사 후 `dist/`에 빌드 |
 | `npm test` | 단위 테스트 (Vitest) |
-| `npm run dev:server` | 방 서버를 로컬에서 실행 (포트 8787) |
 
-방 기능을 로컬에서 쓰려면 터미널 두 개에서 `npm run dev`와 `npm run dev:server`를 같이 켭니다. 처음 한 번은 `npm --prefix server install`이 필요합니다.
+방 기능을 로컬에서 쓰려면 `.env.example`을 `.env.local`로 복사하고 Supabase 주소와 공개 키를 채운 뒤 `npm run dev`를 다시 켭니다.
 
 주소 끝에 `?date=2026-12-24`를 붙이면 그날 밤 9시로 시간을 옮겨 선물 달력과 카운트다운을 미리 볼 수 있습니다.
 
-## 방 서버 배포
+## 배포 (Vercel + Supabase)
 
-방 서버는 Cloudflare Workers + Durable Objects입니다. 방 하나가 Durable Object 하나이고, 사람이 있는 동안만 메모리에 살아 있으며 아무것도 저장하지 않습니다.
+방 기능은 Supabase Realtime을 씁니다. 따로 만든 서버 코드는 없고, Supabase 채널 하나가 방 하나입니다.
+- 접속자 목록(presence): 이름·옷·장소, 들어오고 나가는 것
+- 브로드캐스트: 자주 바뀌는 이동 (0.1초에 한 번까지)
+- 데이터베이스 테이블은 쓰지 않고, 아무것도 저장하지 않습니다.
 
-1. `cd server && npx wrangler login` 으로 Cloudflare 계정에 로그인합니다.
-2. `server/wrangler.jsonc`의 `ALLOWED_ORIGINS`에 앱 주소(예: `https://sky980221.github.io`)를 넣습니다.
-3. `npm run deploy` 로 배포하면 `https://masil-rooms.<계정>.workers.dev` 주소가 나옵니다.
-4. 앱을 빌드할 때 `VITE_ROOM_SERVER=wss://masil-rooms.<계정>.workers.dev npm run build` 처럼 서버 주소를 넣습니다.
+1. **Supabase**: 새 프로젝트를 만들고 Project Settings → API에서 Project URL과 anon public 키를 복사합니다. Realtime 설정에서 공개 채널 접근이 켜져 있어야 합니다.
+2. **Vercel**: GitHub 저장소를 가져오면(Import) `vercel.json` 설정대로 테스트 → 빌드가 돌아갑니다. Project Settings → Environment Variables에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 넣고 다시 배포합니다.
+3. 배포된 주소에서 방을 만들고, 링크를 다른 기기에서 열어 서로 보이는지 확인합니다.
 
-서버 주소 없이 빌드하면 방 만들기 버튼이 꺼진 채로 나옵니다.
+환경 변수 없이 빌드하면 방 만들기 버튼이 꺼진 채로 나옵니다. 방 정원(12명)은 각자의 브라우저가 같은 규칙으로 지키므로, 일부러 규칙을 어기는 클라이언트까지 막지는 못합니다.
 
 ## 구조
 
@@ -53,9 +54,8 @@ src/
   advent/     선물 달력 일정과 날짜 계산 (한국 시간 기준)
   game/       광장 상태(world), 카운트다운 전광판(board), 사진(photo)
   components/ React 화면: 광장, 옷장, 캐릭터 만들기, 선물 달력, 창들
-  net/        방 메시지 규칙(protocol, 서버와 같이 씀), 연결 클라이언트, useRoom
+  net/        방에서 주고받는 데이터 규칙(protocol), Supabase 연결(room), useRoom
   lib/        저장소, 이름 확인
-server/       방 서버 (Cloudflare Worker + Durable Object)
 ```
 
 모든 장면은 270×480 저해상도 캔버스에 코드로 그린 뒤 화면에서 확대합니다. 배경은 장소마다 한 번만 그려 두고, 전구 깜빡임·눈·캐릭터만 매 프레임 그립니다.

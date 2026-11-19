@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ROOM_CAPACITY } from '../net/protocol';
 import type { RoomInfo } from '../net/useRoom';
-import { roomServerBase } from '../net/room';
+import { roomsAvailable } from '../net/room';
 
 interface Props {
   roomId: string | null;
@@ -22,7 +22,7 @@ const STATUS_TEXT: Record<RoomInfo['status'], string> = {
 export function RoomPanel({ roomId, info, onCreate, onLeave }: Props) {
   const [copied, setCopied] = useState(false);
   const linkRef = useRef<HTMLInputElement>(null);
-  const available = roomServerBase() !== null;
+  const available = roomsAvailable();
 
   if (!roomId) {
     return (
@@ -34,7 +34,7 @@ export function RoomPanel({ roomId, info, onCreate, onLeave }: Props) {
         <button className="red" onClick={onCreate} disabled={!available}>
           방 만들고 링크 받기
         </button>
-        {!available && <p className="room-note">방 서버 주소가 아직 설정되지 않았어요.</p>}
+        {!available && <p className="room-note">방 기능을 쓰려면 Supabase 설정이 필요해요.</p>}
       </section>
     );
   }

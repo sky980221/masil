@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanCoord, cleanLook, cleanName, cleanRoomId, newRoomId, parseClientMessage } from './protocol';
+import { admitted, diffPresence, cleanCoord, cleanLook, cleanMove, cleanName, cleanPresence, cleanRoomId, newPeerId, newRoomId } from './protocol';
 
 describe('방 이름', () => {
   it('영문 소문자·숫자·하이픈 3~32자만 받는다', () => {
@@ -32,17 +32,46 @@ describe('받은 값 거르기', () => {
     expect(cleanCoord(Number.NaN, 270)).toBe(0);
     expect(cleanCoord('12', 270)).toBe(0);
   });
+  it('이동은 id가 올바를 때만 받는다', () => {
+    const id = newPeerId();
+    expect(cleanMove({ id, spot: 'jamsil', x: 10, y: 400, tx: 500, ty: 420 })).toEqual({ id, spot: 'jamsil', x: 10, y: 400, tx: 270, ty: 420 });
+    expect(cleanMove({ id: 'nope', x: 1 })).toBeNull();
+    expect(cleanMove({ id, junk: 'x'.repeat(5000) })).toBeNull();
+  });
+  it('접속자 정보도 걸러서 받는다', () => {
+    const p = cleanPresence({ id: 'abcdef12', name: ' 친구 ', look: { hat: 'crown', bad: '<x>' }, spot: 'yeouido', x: 1, y: 2, joinedAt: 5 });
+    expect(p).toEqual({ id: 'abcdef12', name: '친구', look: { hat: 'crown' }, spot: 'yeouido', x: 1, y: 2, joinedAt: 5 });
+  });
 });
 
-describe('메시지 해석', () => {
-  it('모르는 종류나 깨진 JSON은 버린다', () => {
-    expect(parseClientMessage('{oops')).toBeNull();
-    expect(parseClientMessage('{"t":"admin"}')).toBeNull();
-    expect(parseClientMessage('x'.repeat(5000))).toBeNull();
+describe('접속자 목록 비교', () => {
+  const base = { look: { hat: 'santa' }, x: 0, y: 0, joinedAt: 0 };
+  it('들어온 사람, 옷 바꾼 사람, 장소 옮긴 사람, 나간 사람을 가린다', () => {
+    const prev = new Map([
+      ['aaaaaaaa', { ...base, id: 'aaaaaaaa', name: '가', spot: 'jamsil' }],
+      ['bbbbbbbb', { ...base, id: 'bbbbbbbb', name: '나', spot: 'jamsil' }],
+      ['cccccccc', { ...base, id: 'cccccccc', name: '다', spot: 'jamsil' }],
+    ]);
+    const next = [
+      { ...base, id: 'aaaaaaaa', name: '가', spot: 'jamsil' },
+      { ...base, id: 'bbbbbbbb', name: '나', spot: 'yeouido', look: { hat: 'crown' } },
+      { ...base, id: 'dddddddd', name: '라', spot: 'jamsil' },
+    ];
+    const d = diffPresence(prev, next);
+    expect(d.joins.map((p) => p.id)).toEqual(['dddddddd']);
+    expect(d.looks.map((p) => p.id)).toEqual(['bbbbbbbb']);
+    expect(d.moves.map((p) => p.id)).toEqual(['bbbbbbbb']);
+    expect(d.leaves).toEqual(['cccccccc']);
   });
-  it('이동 메시지를 걸러서 돌려준다', () => {
-    expect(parseClientMessage('{"t":"move","spot":"jamsil","x":10,"y":400,"tx":500,"ty":420}')).toEqual({
-      t: 'move', spot: 'jamsil', x: 10, y: 400, tx: 270, ty: 420,
-    });
+});
+
+describe('정원', () => {
+  it('먼저 온 순서로 정원만큼만 들어간다', () => {
+    const list = [
+      { id: 'cccccccc', joinedAt: 3 },
+      { id: 'aaaaaaaa', joinedAt: 1 },
+      { id: 'bbbbbbbb', joinedAt: 1 },
+    ];
+    expect([...admitted(list, 2)].sort()).toEqual(['aaaaaaaa', 'bbbbbbbb']);
   });
 });
