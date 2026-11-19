@@ -65,7 +65,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: grid; gap: 12px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'head' 'nav' 'stage' 'actions' 'advent' 'note';
+  grid-template-areas: 'head' 'nav' 'stage' 'actions' 'room' 'advent' 'note';
 }
 header.top { grid-area: head; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .logo { margin: 0; font-family: var(--f-head); font-weight: 400; font-size: 30px; line-height: 1; letter-spacing: 1px; }
@@ -91,10 +91,13 @@ nav.spots button[aria-pressed='true'] { background: var(--ink); color: var(--pap
   position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: var(--paper-hi); border: 2px solid var(--ink);
   padding: 3px 8px; font-size: 11px; pointer-events: none; transition: opacity 0.6s; white-space: nowrap;
 }
+.tags { position: absolute; inset: 0; pointer-events: none; }
 .tag {
   position: absolute; transform: translate(-50%, -100%); pointer-events: none; font-size: 11px; line-height: 1;
   padding: 3px 5px 2px; background: var(--paper-hi); border: 2px solid var(--ink); white-space: nowrap;
 }
+.tag.me { border-color: var(--red); }
+.tag.me::after { border-top-color: var(--red); }
 .tag::after { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -3px; border: 3px solid transparent; border-top-color: var(--ink); }
 
 .actions { grid-area: actions; display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 8px; }
@@ -112,6 +115,16 @@ nav.spots button[aria-pressed='true'] { background: var(--ink); color: var(--pap
 .cell.open { background: #f7e3a8; }
 .cell.ready { background: var(--red); color: #fff8ec; }
 .cell.locked { background: var(--paper-lo); color: var(--ink-soft); box-shadow: none; top: 2px; }
+
+.room { grid-area: room; }
+.room > button { width: 100%; padding: 10px; }
+.room-note { margin: 0; font-size: 11px; color: var(--ink-soft); }
+.room input { font-size: 13px; }
+.room-actions { justify-content: stretch; }
+.room-actions button { flex: 1; }
+.room-status.s-open { color: #2f6b3e; }
+.room-status.s-full { color: var(--red); }
+.spot-count { background: var(--red); color: #fff8ec; font-size: 10px; line-height: 1; padding: 2px 3px; margin-left: 2px; }
 
 footer.note { grid-area: note; font-family: var(--f-small); font-size: 11px; color: var(--ink-soft); line-height: 1.6; text-align: center; }
 
@@ -179,11 +192,12 @@ footer.note { grid-area: note; font-family: var(--f-small); font-size: 11px; col
     padding-block: 24px;
     gap: 14px 32px;
     grid-template-columns: auto minmax(320px, 400px);
-    grid-template-rows: auto auto auto 1fr auto;
+    grid-template-rows: auto auto auto auto 1fr auto;
     grid-template-areas:
       'stage head'
       'stage nav'
       'stage actions'
+      'stage room'
       'stage advent'
       'stage note';
     justify-content: center;

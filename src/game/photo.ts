@@ -29,26 +29,29 @@ export async function takePhoto(world: World, t: number, name: string, nowMs: nu
   h.strokeStyle = INK;
   h.strokeRect(M - 3, TOP - 3, W * S + 6, H * S + 6);
 
-  const me = world.me;
-  if (name) {
-    const tx = M + me.x * S;
-    const ty = TOP + (me.y - headTop(me.look) - 2) * S - 14;
+  // 같은 방 사람들까지 이름표를 붙인다. 내 이름표는 빨간 테두리.
+  for (const p of world.namedWalkers().sort((a, b) => a.y - b.y)) {
+    const tx = M + p.x * S;
+    const ty = TOP + (p.y - headTop(p.look) - 2) * S - 14;
     h.font = '30px Galmuri11';
-    const bw = Math.round(h.measureText(name).width) + 28;
+    const bw = Math.round(h.measureText(p.name).width) + 28;
     const bh = 46;
     h.fillStyle = PAPER;
     h.fillRect(tx - bw / 2, ty - bh, bw, bh);
+    h.strokeStyle = p.me ? '#c8322f' : INK;
     h.strokeRect(tx - bw / 2, ty - bh, bw, bh);
-    h.fillStyle = INK;
+    h.fillStyle = h.strokeStyle;
     h.beginPath();
     h.moveTo(tx - 10, ty + 3);
     h.lineTo(tx + 10, ty + 3);
     h.lineTo(tx, ty + 15);
     h.fill();
+    h.fillStyle = INK;
     h.textAlign = 'center';
     h.textBaseline = 'middle';
-    h.fillText(name, tx, ty - bh / 2 + 2);
+    h.fillText(p.name, tx, ty - bh / 2 + 2);
   }
+  h.strokeStyle = INK;
 
   const d = daysLeft(nowMs);
   const dt = new Date(nowMs);

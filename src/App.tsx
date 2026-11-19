@@ -11,10 +11,21 @@ import { AdventPanel } from './components/AdventPanel';
 import { Wardrobe } from './components/Wardrobe';
 import { Creator } from './components/Creator';
 import { PhotoDialog, RevealDialog } from './components/Dialogs';
+import { RoomPanel } from './components/RoomPanel';
+import { cleanRoomId, newRoomId } from './net/protocol';
+import { useRoom } from './net/useRoom';
 
 function initialSpot(): number {
   const key = load<string>('spot', '');
   return Math.max(0, SPOTS.findIndex((s) => s.key === key));
+}
+
+/** 주소의 ?room= 값을 바꾼다. ?date= 같은 다른 값은 그대로 둔다. */
+function setRoomInUrl(id: string | null): void {
+  const url = new URL(location.href);
+  if (id) url.searchParams.set('room', id);
+  else url.searchParams.delete('room');
+  history.replaceState(null, '', url);
 }
 
 export function App() {
@@ -33,7 +44,13 @@ export function App() {
   // 광장은 한 번만 만들고, 장소와 옷은 아래 effect에서 바꿔 끼운다
   const [world] = useState(() => new World(look, spot));
 
+  const [roomId, setRoomId] = useState(() => cleanRoomId(new URLSearchParams(location.search).get('room')));
+  const room = useRoom(world, roomId, name, look, SPOTS[spot].key);
+
   useEffect(() => world.setLook(look), [world, look]);
+  useEffect(() => {
+    world.name = name;
+  }, [world, name]);
   useEffect(() => world.setSpot(spot), [world, spot]);
   useEffect(() => save('name', name), [name]);
   useEffect(() => save('look', look), [look]);
@@ -70,14 +87,18 @@ export function App() {
       </header>
 
       <nav className="spots" aria-label="명소 고르기">
-        {SPOTS.map((s, i) => (
-          <button key={s.key} aria-pressed={i === spot} onClick={() => setSpot(i)}>
-            {s.chip}
-          </button>
-        ))}
+        {SPOTS.map((s, i) => {
+          const n = room.counts[s.key] ?? 0;
+          return (
+            <button key={s.key} aria-pressed={i === spot} onClick={() => setSpot(i)} aria-label={n ? `${s.chip}, 방 사람 ${n}명` : s.chip}>
+              {s.chip}
+              {n > 0 && <span className="spot-count">{n}</span>}
+            </button>
+          );
+        })}
       </nav>
 
-      <Stage world={world} name={name} keysEnabled={!anyOverlay} flashKey={flashKey} />
+      <Stage world={world} keysEnabled={!anyOverlay} flashKey={flashKey} />
 
       <div className="actions">
         <button className={`gift-btn${hasGift ? ' has' : ''}`} aria-expanded={adventOpen} onClick={() => setAdventOpen(!adventOpen)}>
@@ -100,8 +121,23 @@ export function App() {
         onShow={(i) => setReveal({ index: i, isNew: false })}
       />
 
+      <RoomPanel
+        roomId={roomId}
+        info={room}
+        onCreate={() => {
+          const id = newRoomId();
+          setRoomInUrl(id);
+          setRoomId(id);
+        }}
+        onLeave={() => {
+          setRoomInUrl(null);
+          setRoomId(null);
+        }}
+      />
+
       <footer className="note">
-        실제 명소를 참고해 새로 그린 픽셀 그림이에요. 각 장소·회사와 관계없는 비공식 프로젝트이고, 다른 방문자는 시연용으로 움직여요.
+        실제 명소를 참고해 새로 그린 픽셀 그림이에요. 각 장소·회사와 관계없는 비공식 프로젝트예요.
+        {roomId ? ' 방에서는 링크로 들어온 사람만 보여요.' : ' 방에 들어가기 전에는 다른 방문자가 시연용으로 움직여요.'}
       </footer>
 
       {creating && (

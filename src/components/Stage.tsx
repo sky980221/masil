@@ -6,23 +6,23 @@ import type { World } from '../game/world';
 
 interface Props {
   world: World;
-  name: string;
   /** 창이 떠 있으면 방향키 이동을 막는다 */
   keysEnabled: boolean;
   /** 값이 바뀔 때마다 사진 플래시를 터뜨린다 */
   flashKey: number;
 }
 
-/** 광장 캔버스. 매 프레임 갱신·그리기를 하고, 내 캐릭터 머리 위에 이름표를 붙인다. */
-export function Stage({ world, name, keysEnabled, flashKey }: Props) {
+/** 광장 캔버스. 매 프레임 갱신·그리기를 하고, 이름 있는 사람들 머리 위에 이름표를 붙인다. */
+export function Stage({ world, keysEnabled, flashKey }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const tagRef = useRef<HTMLDivElement>(null);
+  const tagsRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
   const [hint, setHint] = useState(true);
 
   useEffect(() => {
     const cv = canvasRef.current!;
     const ctx = cv.getContext('2d')!;
+    const box = tagsRef.current!;
     let raf = 0;
     let last = performance.now();
     const loop = (ts: number) => {
@@ -30,12 +30,21 @@ export function Stage({ world, name, keysEnabled, flashKey }: Props) {
       last = ts;
       world.update(dt);
       world.render(ctx, ts / 1000, clockNow());
-      const tag = tagRef.current;
-      if (tag) {
-        const k = cv.clientWidth / W;
-        tag.style.left = `${Math.round(world.me.x * k)}px`;
-        tag.style.top = `${Math.round((world.me.y - headTop(world.me.look) - 2) * k - 6)}px`;
-      }
+
+      // 이름표: 필요한 만큼 div를 늘리고 줄인다
+      const people = world.namedWalkers();
+      while (box.children.length < people.length) box.appendChild(document.createElement('div'));
+      while (box.children.length > people.length) box.lastChild!.remove();
+      const k = cv.clientWidth / W;
+      people.forEach((p, i) => {
+        const el = box.children[i] as HTMLDivElement;
+        const cls = p.me ? 'tag me' : 'tag';
+        if (el.className !== cls) el.className = cls;
+        if (el.textContent !== p.name) el.textContent = p.name;
+        el.style.left = `${Math.round(p.x * k)}px`;
+        el.style.top = `${Math.round((p.y - headTop(p.look) - 2) * k - 6)}px`;
+        el.style.zIndex = String(Math.round(p.y));
+      });
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -93,11 +102,7 @@ export function Stage({ world, name, keysEnabled, flashKey }: Props) {
             setHint(false);
           }}
         />
-        {name && (
-          <div ref={tagRef} className="tag">
-            {name}
-          </div>
-        )}
+        <div ref={tagsRef} className="tags" aria-hidden="true" />
         <div ref={flashRef} className="flash" />
         <div className="hint" style={{ opacity: hint ? 1 : 0 }}>
           바닥을 누르면 걸어가요

@@ -1,0 +1,15 @@
+{
+  // 방 하나 = Durable Object 하나. 같은 방 이름으로 들어온 사람은 같은 객체에 모인다.
+  "name": "masil-rooms",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "vars": {
+    // 쉼표로 구분한 허용 주소. 비워 두면 어디서든 접속할 수 있다 (로컬 개발용).
+    // 배포할 때 예: "https://sky980221.github.io"
+    "ALLOWED_ORIGINS": ""
+  }
+}

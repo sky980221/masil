@@ -1,8 +1,9 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
 import { type Ctx, W, H, R, P, mix, rng, makeCanvas } from '../engine/pixel';
-import { type Look, randomLook } from '../avatar/options';
+import { type Look, normalizeLook, randomLook } from '../avatar/options';
 import { type AvatarPose, drawAvatar } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
+import type { PeerState } from '../net/protocol';
 import { drawBoard } from './board';
 
 export interface Walker extends AvatarPose {
@@ -11,6 +12,26 @@ export interface Walker extends AvatarPose {
   wait: number;
   speed: number;
 }
+
+/** 같은 방에 들어온 다른 사람 */
+export interface Peer extends Walker {
+  id: string;
+  name: string;
+  spot: string;
+}
+
+/** 이름표를 붙일 사람 */
+export interface NamedWalker {
+  x: number;
+  y: number;
+  look: Look;
+  name: string;
+  me: boolean;
+}
+
+const PEER_SPEED = 60;
+/** 받은 위치와 이만큼 넘게 차이 나면 걷지 않고 바로 옮긴다 */
+const SNAP_DISTANCE = 40;
 
 interface Flake {
   x: number;
@@ -37,6 +58,10 @@ export class World {
   private vignette = makeVignette();
   npcs: Walker[] = [];
   me: Walker;
+  name = '';
+  /** 방에 들어가 있으면 시연용 방문자를 빼고 진짜 사람만 보여 준다 */
+  private online = false;
+  readonly peers = new Map<string, Peer>();
   private snow: Flake[] = [];
   private sparkles: Sparkle[] = [];
   readonly keys = new Set<string>();
@@ -61,16 +86,10 @@ export class World {
     this.bg = hit.bg;
     this.scene = hit.scene;
 
-    const [x0, y0, x1, y1] = this.scene.floor;
+    const [, y0, , y1] = this.scene.floor;
     this.me.x = this.me.tx = 135;
     this.me.y = this.me.ty = Math.min(y1, y0 + 50);
-
-    const r = rng((Date.now() & 0xffff) + 1);
-    this.npcs = Array.from({ length: NPC_COUNT }, (_, k) => {
-      const x = x0 + r() * (x1 - x0);
-      const y = y0 + r() * (y1 - y0);
-      return { x, y, tx: x, ty: y, dir: 0, moving: false, wait: r() * 4, speed: 12 + r() * 12, seed: k * 5 + 1, look: randomLook(r) };
-    });
+    this.spawnNpcs();
     this.snow = spot.snow
       ? Array.from({ length: 120 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 10 + Math.random() * 20, ph: Math.random() * 7, big: Math.random() < 0.22 }))
       : [];
@@ -79,8 +98,82 @@ export class World {
       : Array.from({ length: 30 }, () => ({ x: Math.random() * W, y: Math.random() * 300, p: Math.random() * 7, s: 1 + Math.random() * 2 }));
   }
 
+  private spawnNpcs(): void {
+    if (this.online) {
+      this.npcs = [];
+      return;
+    }
+    const [x0, y0, x1, y1] = this.scene.floor;
+    const r = rng((Date.now() & 0xffff) + 1);
+    this.npcs = Array.from({ length: NPC_COUNT }, (_, k) => {
+      const x = x0 + r() * (x1 - x0);
+      const y = y0 + r() * (y1 - y0);
+      return { x, y, tx: x, ty: y, dir: 0, moving: false, wait: r() * 4, speed: 12 + r() * 12, seed: k * 5 + 1, look: randomLook(r) };
+    });
+  }
+
   setLook(look: Look): void {
     this.me.look = look;
+  }
+
+  setOnline(on: boolean): void {
+    if (this.online === on) return;
+    this.online = on;
+    if (!on) this.peers.clear();
+    this.spawnNpcs();
+  }
+
+  /** 방에 처음 들어왔거나 새 사람이 들어왔을 때 */
+  upsertPeer(p: PeerState): void {
+    const old = this.peers.get(p.id);
+    if (old) {
+      Object.assign(old, { name: p.name, look: normalizeLook(p.look), spot: p.spot });
+      this.movePeer(p.id, p.spot, p.x, p.y, p.tx, p.ty);
+      return;
+    }
+    this.peers.set(p.id, {
+      id: p.id, name: p.name, spot: p.spot, look: normalizeLook(p.look),
+      x: p.x, y: p.y, tx: p.tx, ty: p.ty, dir: 0, moving: false, wait: 0, speed: PEER_SPEED,
+      seed: (parseInt(p.id.slice(0, 4), 16) || 7) % 97,
+    });
+  }
+
+  movePeer(id: string, spot: string, x: number, y: number, tx: number, ty: number): void {
+    const p = this.peers.get(id);
+    if (!p) return;
+    if (p.spot !== spot || Math.hypot(p.x - x, p.y - y) > SNAP_DISTANCE) {
+      p.x = x;
+      p.y = y;
+    }
+    p.spot = spot;
+    p.tx = tx;
+    p.ty = ty;
+  }
+
+  lookPeer(id: string, name: string, look: Record<string, string>): void {
+    const p = this.peers.get(id);
+    if (!p) return;
+    p.name = name;
+    p.look = normalizeLook(look);
+  }
+
+  removePeer(id: string): void {
+    this.peers.delete(id);
+  }
+
+  /** 장소별 방 사람 수 (나는 빼고) */
+  peerCounts(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const p of this.peers.values()) out[p.spot] = (out[p.spot] ?? 0) + 1;
+    return out;
+  }
+
+  /** 지금 보이는, 이름이 있는 사람들 (나 포함) */
+  namedWalkers(): NamedWalker[] {
+    const list: NamedWalker[] = [];
+    for (const p of this.peers.values()) if (p.spot === this.spot.key) list.push({ x: p.x, y: p.y, look: p.look, name: p.name, me: false });
+    if (this.name) list.push({ x: this.me.x, y: this.me.y, look: this.me.look, name: this.name, me: true });
+    return list;
   }
 
   /** 화면 좌표(저해상도 기준)로 걸어갈 곳을 정한다. 바닥 밖이면 가장자리로 맞춘다. */
@@ -98,6 +191,7 @@ export class World {
       this.walkTo(this.me.x + vx * 10, this.me.y + vy * 10);
     }
     moveToward(this.me, dt);
+    for (const p of this.peers.values()) moveToward(p, dt);
     const [x0, y0, x1, y1] = this.scene.floor;
     for (const e of this.npcs) {
       if (e.wait > 0) {
@@ -149,7 +243,8 @@ export class World {
     this.scene.animate?.(c, t);
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
     if (this.scene.train) drawTrain(c, t, this.scene.train);
-    const all: Walker[] = [...this.npcs, this.me].sort((a, b) => a.y - b.y);
+    const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
+    const all: Walker[] = [...this.npcs, ...here, this.me].sort((a, b) => a.y - b.y);
     for (const e of all) drawAvatar(c, e, t);
     for (const f of this.snow) {
       c.globalAlpha = f.big ? 0.95 : 0.7;
