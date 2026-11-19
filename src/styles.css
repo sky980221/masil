@@ -91,7 +91,8 @@ nav.spots button[aria-pressed='true'] { background: var(--ink); color: var(--pap
   position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: var(--paper-hi); border: 2px solid var(--ink);
   padding: 3px 8px; font-size: 11px; pointer-events: none; transition: opacity 0.6s; white-space: nowrap;
 }
-.tags { position: absolute; inset: 0; pointer-events: none; }
+/* z-index를 줘서 이름표끼리의 앞뒤 순서가 이 안에서만 정해지게 한다 (창 위로 비치지 않게) */
+.tags { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .tag {
   position: absolute; transform: translate(-50%, -100%); pointer-events: none; font-size: 11px; line-height: 1;
   padding: 3px 5px 2px; background: var(--paper-hi); border: 2px solid var(--ink); white-space: nowrap;

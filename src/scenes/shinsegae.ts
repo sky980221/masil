@@ -109,8 +109,8 @@ export const shinsegae: Spot = {
     const grid = makeCanvas(W, H);
     const g = grid.getContext('2d')!;
     g.fillStyle = 'rgba(6,6,14,.3)';
-    for (let x = FX; x < FX + FW; x += 2) g.fillRect(x, FY, 1, FH);
-    for (let y = FY; y < FY + FH; y += 2) g.fillRect(FX, y, FW, 1);
+    for (let x = FX; x < FX + FW + 8; x += 1) g.fillRect(x, FY, 0.5, FH);
+    for (let y = FY; y < FY + FH; y += 1) g.fillRect(FX, y, FW + 8, 0.5);
     const fr = rng(42);
     const flakes = Array.from({ length: 50 }, () => ({ x: fr() * FW, y: fr() * FH, v: 6 + fr() * 10 }));
 
@@ -164,7 +164,7 @@ function drawFacade(c: Ctx, t: number, flakes: { x: number; y: number; v: number
   for (let y = FY; y < FY + FH; y += 2) R(c, bx + (y - FY) * 0.5, y, 16, 2, '#ffffff');
   c.globalAlpha = 1;
   c.globalCompositeOperation = 'source-over';
-  c.drawImage(grid, 0, 0);
+  c.drawImage(grid, 0, 0, W, H);
   c.restore();
 
   // 화면 밖으로 튀어나온 듯한 빨간 리본 선물 상자 (아치 위에서 위아래로 둥실)

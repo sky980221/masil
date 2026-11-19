@@ -94,10 +94,14 @@ export function drawTree(c: Ctx, r: Rand, o: TreeOptions): Light[] {
     }
   }
   // 줄기와 화분
-  R(c, o.cx - 5, o.base, 10, 7, o.trunk ?? '#5a3a24');
-  R(c, o.cx - 14, o.base + 5, 28, 10, o.pot ?? '#a8323f');
-  R(c, o.cx - 14, o.base + 5, 28, 2, o.potTop ?? '#f6c453');
-  R(c, o.cx + 6, o.base + 7, 8, 8, 'rgba(0,0,0,.18)');
+  // 줄기와 화분은 트리 폭에 맞춰 크기를 정한다 (작은 트리에 큰 화분이 붙지 않게)
+  const pw = Math.round(Math.min(28, Math.max(6, o.w * 0.32)));
+  const ph = Math.round(Math.min(10, Math.max(3, o.w * 0.12)));
+  const tw = Math.max(2, Math.round(pw * 0.36));
+  R(c, o.cx - tw / 2, o.base, tw, ph * 0.7, o.trunk ?? '#5a3a24');
+  R(c, o.cx - pw / 2, o.base + ph * 0.5, pw, ph, o.pot ?? '#a8323f');
+  R(c, o.cx - pw / 2, o.base + ph * 0.5, pw, Math.max(0.5, ph * 0.2), o.potTop ?? '#f6c453');
+  R(c, o.cx + pw * 0.2, o.base + ph * 0.7, pw * 0.3, ph * 0.8, 'rgba(0,0,0,.18)');
   // 오너먼트
   for (let n = 0; n < o.ornN; n++) {
     const i = 10 + r() * (o.h - 14);

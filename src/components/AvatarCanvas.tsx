@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Look } from '../avatar/options';
 import { drawAvatar } from '../avatar/draw';
+import { SS, prepare } from '../engine/pixel';
 
 interface Props {
   look: Look;
@@ -23,6 +24,7 @@ export function AvatarCanvas({ look, width = 48, height = 60, scale = 2.5, anima
     const cv = ref.current;
     if (!cv) return;
     const c = cv.getContext('2d')!;
+    prepare(c);
     const draw = (t: number) => {
       c.clearRect(0, 0, width, height);
       drawAvatar(c, { x: width / 2, y: height - 5, dir: 0, moving: false, seed: 1, look }, t);
@@ -43,8 +45,8 @@ export function AvatarCanvas({ look, width = 48, height = 60, scale = 2.5, anima
   return (
     <canvas
       ref={ref}
-      width={width}
-      height={height}
+      width={width * SS}
+      height={height * SS}
       className={className}
       style={{ width: width * scale, height: height * scale }}
       role={label ? 'img' : undefined}

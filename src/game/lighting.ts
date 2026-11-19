@@ -29,6 +29,6 @@ export class Lighting {
       l.fillRect(g.x - r, g.y - r, r * 2, r * 2);
     }
     l.globalCompositeOperation = 'source-over';
-    c.drawImage(this.cv, 0, 0);
+    c.drawImage(this.cv, 0, 0, W, H);
   }
 }

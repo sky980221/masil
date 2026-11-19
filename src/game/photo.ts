@@ -1,4 +1,4 @@
-// 지금 장면을 1080×1920 폴라로이드 사진으로 만든다. 이름표와 장소·D-day 문구가 들어간다.
+// 지금 장면을 폴라로이드 사진(1180×2270, 장면 부분은 1080×1920)으로 만든다. 이름표와 장소·D-day 문구가 들어간다.
 import { W, H, makeCanvas } from '../engine/pixel';
 import { headTop } from '../avatar/draw';
 import { daysLeft } from '../advent/calendar';
@@ -16,10 +16,13 @@ export async function takePhoto(world: World, t: number, name: string, nowMs: nu
   const lo = makeCanvas(W, H);
   world.render(lo.getContext('2d')!, t, nowMs);
 
-  const S = 3;
-  const M = 135;
-  const TOP = 110;
-  const hi = makeCanvas(1080, 1920);
+  // 장면 캔버스(실제 540×960)를 정확히 2배로 키워 픽셀 모양이 고르게 유지되게 한다
+  const S = 4;
+  const M = 50;
+  const TOP = 50;
+  const hi = document.createElement('canvas');
+  hi.width = W * S + M * 2;
+  hi.height = H * S + TOP + 300;
   const h = hi.getContext('2d')!;
   h.fillStyle = PAPER;
   h.fillRect(0, 0, hi.width, hi.height);

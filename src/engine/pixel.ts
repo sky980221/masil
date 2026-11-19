@@ -1,6 +1,12 @@
-// 픽셀 캔버스 공용 도구. 모든 장면은 W×H 저해상도 캔버스에 그린 뒤 화면에서 확대한다.
+// 픽셀 캔버스 공용 도구. 장면 좌표는 W×H(270×480) 단위로 쓰고,
+// 실제 캔버스는 SS배 촘촘하게(540×960) 만들어 선·곡선·점무늬를 반 칸 단위로 그린다.
 export const W = 270;
 export const H = 480;
+/** 한 좌표 칸을 몇 개의 실제 픽셀로 그릴지 */
+export const SS = 2;
+/** 실제 픽셀 하나의 좌표 크기 */
+export const PX = 1 / SS;
+const snap = (v: number) => Math.round(v * SS) / SS;
 
 export type Ctx = CanvasRenderingContext2D;
 export type Rand = () => number;
@@ -36,10 +42,10 @@ export function hash(n: number): number {
 }
 
 export function R(c: Ctx, x: number, y: number, w: number, h: number, col: string): void {
-  x = Math.round(x);
-  y = Math.round(y);
-  w = Math.round(w);
-  h = Math.round(h);
+  x = snap(x);
+  y = snap(y);
+  w = snap(w);
+  h = snap(h);
   if (w <= 0 || h <= 0) return;
   c.fillStyle = col;
   c.fillRect(x, y, w, h);
@@ -72,9 +78,10 @@ const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => 
  * 단계 경계를 디더링(점무늬)으로 섞는다.
  */
 export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string, steps = 8): void {
-  const h = y1 - y0;
+  const h = (y1 - y0) * SS;
+  const w = W * SS;
   if (h <= 0) return;
-  const img = c.createImageData(W, h);
+  const img = c.createImageData(w, h);
   const d = img.data;
   const A = hexToRgb(a);
   const B = hexToRgb(b);
@@ -84,16 +91,16 @@ export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string, step
     const t = (y / Math.max(1, h - 1)) * steps;
     const k = Math.min(steps - 1, Math.floor(t));
     const frac = t - k;
-    for (let x = 0; x < W; x++) {
+    for (let x = 0; x < w; x++) {
       const col = frac > BAYER[(y & 3) * 4 + (x & 3)] ? levels[k + 1] : levels[k];
-      const o = (y * W + x) * 4;
+      const o = (y * w + x) * 4;
       d[o] = col[0];
       d[o + 1] = col[1];
       d[o + 2] = col[2];
       d[o + 3] = 255;
     }
   }
-  c.putImageData(img, 0, y0);
+  c.putImageData(img, 0, y0 * SS);
 }
 
 /**
@@ -101,12 +108,14 @@ export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string, step
  * 매끈한 빛 번짐까지 픽셀 아트처럼 보이게 그림 전체의 질감을 맞춘다.
  */
 export function posterize(c: Ctx, levels = 18): void {
-  const img = c.getImageData(0, 0, W, H);
+  const w = c.canvas.width;
+  const h = c.canvas.height;
+  const img = c.getImageData(0, 0, w, h);
   const d = img.data;
   const step = 255 / (levels - 1);
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const o = (y * W + x) * 4;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
       const th = BAYER[(y & 3) * 4 + (x & 3)];
       for (let ch = 0; ch < 3; ch++) {
         const v = d[o + ch] / step;
@@ -152,11 +161,12 @@ export function glow(c: Ctx, x: number, y: number, rad: number, col: string, a: 
   c.restore();
 }
 
+/** 실제 픽셀 하나 굵기의 가는 선 */
 export function line(c: Ctx, x0: number, y0: number, x1: number, y1: number, col: string): void {
-  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0;
+  const n = (Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * SS) | 0;
   for (let i = 0; i <= n; i++) {
     const t = n ? i / n : 0;
-    P(c, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, col);
+    R(c, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, PX, PX, col);
   }
 }
 
@@ -182,7 +192,8 @@ export function perspWall(
   paint: WallPainter,
 ): void {
   const dx = side === 'L' ? vp.x : W - 1 - vp.x;
-  for (let i = 0; i < xFar; i++) {
+  // 반 칸씩 나아가며 칠한다. 다음 열이 앞 열의 절반을 덮어 실제 픽셀 한 줄 폭이 된다.
+  for (let i = 0; i < xFar; i += PX) {
     const X = side === 'L' ? i : W - 1 - i;
     const f = i / dx;
     const s = 1 - f;
@@ -198,34 +209,47 @@ export function perspWall(
 /** 소실점으로 모이는 타일 바닥 */
 export function perspFloor(c: Ctx, vp: Vanish, y0: number, y1: number, base: string, ln: string, step: number): void {
   R(c, 0, y0, W, y1 - y0, base);
-  for (let y = y0 + 2, g = 3; y < y1; y += g, g *= 1.17) R(c, 0, y, W, 1, ln);
+  for (let y = y0 + 2, g = 3; y < y1; y += g, g *= 1.17) R(c, 0, y, W, g > 8 ? 1 : PX, ln);
   for (let x = -W * 2; x <= W * 3; x += step) {
-    for (let y = y0; y < y1; y++) {
+    for (let y = y0; y < y1; y += PX) {
       const t = (y - vp.y) / (y1 - vp.y);
-      P(c, vp.x + (x - vp.x) * t, y, ln);
+      R(c, vp.x + (x - vp.x) * t, y, PX, PX, ln);
     }
   }
 }
 
 /** yF 위쪽 h줄을 뒤집어 반짝이는 바닥에 비친 것처럼 그린다. */
 export function reflect(c: Ctx, yF: number, h: number, a: number): void {
+  // 실제 픽셀 단위로 복사해 뒤집는다
   const t = document.createElement('canvas');
-  t.width = W;
-  t.height = h;
-  t.getContext('2d')!.drawImage(c.canvas, 0, yF - h, W, h, 0, 0, W, h);
+  t.width = W * SS;
+  t.height = h * SS;
+  t.getContext('2d')!.drawImage(c.canvas, 0, (yF - h) * SS, W * SS, h * SS, 0, 0, W * SS, h * SS);
   c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalAlpha = a;
-  c.translate(0, 2 * yF);
+  c.translate(0, 2 * yF * SS);
   c.scale(1, -1);
-  c.drawImage(t, 0, yF - h);
+  c.drawImage(t, 0, (yF - h) * SS);
   c.restore();
 }
 
+/**
+ * 좌표 w×h짜리 캔버스. 실제 크기는 SS배이고, 그리기 좌표는 처음부터 SS배 확대돼 있다.
+ * 다른 캔버스에 붙일 때는 drawImage(cv, x, y, w, h)처럼 좌표 크기를 꼭 넘긴다.
+ */
 export function makeCanvas(w: number, h: number): HTMLCanvasElement {
   const cv = document.createElement('canvas');
-  cv.width = w;
-  cv.height = h;
+  cv.width = w * SS;
+  cv.height = h * SS;
+  prepare(cv.getContext('2d')!);
   return cv;
+}
+
+/** 캔버스 컨텍스트를 좌표 단위로 그리도록 맞춘다 (확대 + 보간 끄기) */
+export function prepare(c: Ctx): void {
+  c.setTransform(SS, 0, 0, SS, 0, 0);
+  c.imageSmoothingEnabled = false;
 }
 
 export const BOOK = ['#9b4a3c', '#c58a4a', '#5d7a6a', '#3f5a7a', '#d8c3a0', '#7a5a8a', '#b8a06a', '#8c3b4f', '#4e6b8a', '#a8743a'] as const;

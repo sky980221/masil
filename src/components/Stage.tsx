@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { W, H } from '../engine/pixel';
+import { W, H, SS, prepare } from '../engine/pixel';
 import { headTop } from '../avatar/draw';
 import { clockNow } from '../advent/calendar';
 import type { World } from '../game/world';
@@ -22,6 +22,7 @@ export function Stage({ world, keysEnabled, flashKey }: Props) {
   useEffect(() => {
     const cv = canvasRef.current!;
     const ctx = cv.getContext('2d')!;
+    prepare(ctx);
     const box = tagsRef.current!;
     let raf = 0;
     let last = performance.now();
@@ -93,8 +94,8 @@ export function Stage({ world, keysEnabled, flashKey }: Props) {
         <canvas
           ref={canvasRef}
           id="cv"
-          width={W}
-          height={H}
+          width={W * SS}
+          height={H * SS}
           aria-label={`${world.spot.name}. 바닥을 누르면 그 자리로 걸어가요.`}
           onPointerDown={(e) => {
             const rc = e.currentTarget.getBoundingClientRect();

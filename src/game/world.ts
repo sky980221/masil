@@ -51,9 +51,9 @@ interface Print {
 }
 
 const SNOW_LAYERS = [
-  { n: 70, size: 1, speed: [8, 13], alpha: 0.5, sway: 0.12 },
+  { n: 90, size: 0.5, speed: [8, 13], alpha: 0.6, sway: 0.12 },
   { n: 50, size: 1, speed: [15, 24], alpha: 0.8, sway: 0.22 },
-  { n: 18, size: 2, speed: [28, 40], alpha: 0.95, sway: 0.4 },
+  { n: 18, size: 1.5, speed: [28, 40], alpha: 0.95, sway: 0.4 },
 ] as const;
 const PRINT_LIFE = 7;
 const MAX_PRINTS = 240;
@@ -252,7 +252,7 @@ export class World {
 
   render(c: Ctx, t: number, nowMs: number): void {
     // 1) 빛을 받는 것들: 배경, 멀리 있는 사람, 기차, 캐릭터
-    c.drawImage(this.bg, 0, 0);
+    c.drawImage(this.bg, 0, 0, W, H);
     const cl = this.spot.crowd;
     if (cl) {
       for (const f of this.far) {
@@ -283,14 +283,17 @@ export class World {
       // 제각각 깜빡임 + 아래에서 위로 올라가는 느린 빛 물결
       const b = ((Math.sin(t * l.s + l.p) + 1) / 2) * 0.65 + ((Math.sin(t * 1.6 + l.y * 0.045) + 1) / 2) * 0.35;
       if (b < 0.25 && !l.big) continue;
+      // 반 칸 크기의 밝은 심 + 반 칸 빛살로 더 잘게 반짝인다
       c.globalAlpha = 0.45 + b * 0.55;
-      P(c, l.x, l.y, l.col);
-      if (b > 0.8 || l.big) {
-        c.globalAlpha = 0.3 * b;
-        P(c, l.x - 1, l.y, l.col);
-        P(c, l.x + 1, l.y, l.col);
-        P(c, l.x, l.y - 1, l.col);
-        P(c, l.x, l.y + 1, l.col);
+      R(c, l.x, l.y, 1, 1, l.col);
+      if (b > 0.75 || l.big) {
+        c.globalAlpha = Math.min(1, 0.35 + b * 0.5);
+        R(c, l.x + 0.25, l.y + 0.25, 0.5, 0.5, '#ffffff');
+        c.globalAlpha = 0.35 * b;
+        R(c, l.x - 0.5, l.y + 0.25, 0.5, 0.5, l.col);
+        R(c, l.x + 1, l.y + 0.25, 0.5, 0.5, l.col);
+        R(c, l.x + 0.25, l.y - 0.5, 0.5, 0.5, l.col);
+        R(c, l.x + 0.25, l.y + 1, 0.5, 0.5, l.col);
       }
     }
     c.globalAlpha = 1;
@@ -306,7 +309,7 @@ export class World {
 
     // 4) 먼 눈 → 그늘 → 가까운 눈 순서로 깊이를 낸다
     this.drawSnow(c, 0, 1);
-    c.drawImage(this.vignette, 0, 0);
+    c.drawImage(this.vignette, 0, 0, W, H);
     this.drawSnow(c, 2, 2);
   }
 
@@ -329,7 +332,7 @@ export class World {
     c.globalAlpha = 0.16;
     c.translate(0, 2 * Math.round(e.y));
     c.scale(1, -1);
-    c.drawImage(this.mirror, Math.round(e.x) - 24, Math.round(e.y) - 58);
+    c.drawImage(this.mirror, Math.round(e.x) - 24, Math.round(e.y) - 58, 48, 64);
     c.restore();
   }
 }
