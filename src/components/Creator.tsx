@@ -10,19 +10,19 @@ interface Props {
   onDone: (name: string, look: Look) => void;
 }
 
-const STEPS = [...GROUPS.map((g) => g.label), '이름'];
-
-/** 처음 들어온 사람이 헤어 → 얼굴 → 옷 → 모자 → 소품 → 이름 순서로 직접 캐릭터를 만든다. */
+/**
+ * 처음 들어온 사람이 캐릭터를 만든다.
+ * 고른다고 다음 칸으로 넘어가지 않는다. 탭을 자유롭게 오가며 다 고른 뒤, 이름을 쓰고 한 번에 확정한다.
+ */
 export function Creator({ opened, onDone }: Props) {
-  const [step, setStep] = useState(0);
+  const [tab, setTab] = useState(0);
   const [look, setLook] = useState<Look>({ ...DEFAULT_LOOK, hat: 'none', item: 'none' });
+  const [visited, setVisited] = useState(() => new Set([0]));
   const [name, setName] = useState('');
-  const isNameStep = step === GROUPS.length;
   const valid = cleanName(name);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!isNameStep) return setStep(step + 1);
     if (valid) onDone(valid, look);
   };
 
@@ -31,52 +31,43 @@ export function Creator({ opened, onDone }: Props) {
       <form className="sheet px creator" onSubmit={submit}>
         <div className="wd-head">
           <h2>캐릭터 만들기</h2>
-          <span className="step-count">
-            {step + 1}/{STEPS.length}
-          </span>
         </div>
-        <ol className="steps" aria-label="만드는 순서">
-          {STEPS.map((s, i) => (
-            <li key={s} aria-current={i === step ? 'step' : undefined} className={i < step ? 'done' : undefined}>
-              <button type="button" onClick={() => setStep(i)} disabled={i > step}>
-                {s}
-              </button>
-            </li>
-          ))}
-        </ol>
         <div className="wd-top">
           <div className="mirror">
             <AvatarCanvas look={look} scale={2} animate label="지금 만든 캐릭터" />
           </div>
           <div className="wd-info">
-            {isNameStep ? (
-              <label className="field">
-                이름
-                <input type="text" id="creatorName" value={name} maxLength={NAME_MAX * 2} autoComplete="off" placeholder="예: 눈사람" autoFocus onChange={(e) => setName(e.target.value)} />
-                <small>1~{NAME_MAX}자. 광장에서 머리 위에 보여요.</small>
-              </label>
-            ) : (
-              <p className="creator-hint">
-                {step === 0 && '먼저 머리 모양과 머리색을 골라 주세요.'}
-                {step === 1 && '피부색과 눈을 고르고, 원하면 안경도 써 보세요.'}
-                {step === 2 && '겨울 외투와 하의를 골라 주세요.'}
-                {step === 3 && '모자는 안 써도 괜찮아요.'}
-                {step === 4 && '목도리와 손에 들 것을 골라 주세요.'}
-              </p>
-            )}
+            <p className="creator-hint">아래 탭을 오가며 마음껏 골라 보세요. 다 고르면 이름을 쓰고 시작하면 돼요.</p>
+            <label className="field">
+              이름
+              <input type="text" id="creatorName" value={name} maxLength={NAME_MAX * 2} autoComplete="off" placeholder="예: 눈사람" onChange={(e) => setName(e.target.value)} />
+              <small>1~{NAME_MAX}자. 광장에서 머리 위에 보여요.</small>
+            </label>
           </div>
         </div>
-        {!isNameStep && (
-          <div className="wd-body">
-            <OutfitPicker group={GROUPS[step]} look={look} opened={opened} onPick={(cat, opt) => setLook({ ...look, [cat]: opt })} />
-          </div>
-        )}
+        <div className="wd-tabs" role="tablist">
+          {GROUPS.map((g, i) => (
+            <button
+              key={g.label}
+              type="button"
+              role="tab"
+              aria-selected={i === tab}
+              onClick={() => {
+                setTab(i);
+                setVisited(new Set(visited).add(i));
+              }}
+            >
+              {g.label}
+              {visited.has(i) && i !== tab && <span className="check" aria-label="봤어요">✓</span>}
+            </button>
+          ))}
+        </div>
+        <div className="wd-body" role="tabpanel">
+          <OutfitPicker group={GROUPS[tab]} look={look} opened={opened} onPick={(cat, opt) => setLook({ ...look, [cat]: opt })} />
+        </div>
         <div className="wd-foot">
-          <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}>
-            이전
-          </button>
-          <button type="submit" className="red" disabled={isNameStep && !valid}>
-            {isNameStep ? '마실 나가기' : '다음'}
+          <button type="submit" className="red" disabled={!valid}>
+            {valid ? '이대로 마실 나가기' : '이름을 쓰면 시작할 수 있어요'}
           </button>
         </div>
       </form>
