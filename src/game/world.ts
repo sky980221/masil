@@ -1,6 +1,6 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
 import { type Ctx, W, H, R, P, mix, rng, makeCanvas } from '../engine/pixel';
-import { type Look, normalizeLook, randomLook } from '../avatar/options';
+import { type Look, normalizeLook } from '../avatar/options';
 import { type AvatarPose, drawAvatar } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
 import type { PeerState } from '../net/protocol';
@@ -48,7 +48,6 @@ interface Sparkle {
   s: number;
 }
 
-const NPC_COUNT = 7;
 const MY_SPEED = 55;
 
 export class World {
@@ -56,11 +55,9 @@ export class World {
   scene!: SceneBuild;
   private bg = makeCanvas(W, H);
   private vignette = makeVignette();
-  npcs: Walker[] = [];
   me: Walker;
   name = '';
-  /** 방에 들어가 있으면 시연용 방문자를 빼고 진짜 사람만 보여 준다 */
-  private online = false;
+  /** 같은 방에 링크로 들어온 사람들. 방에 들어가기 전에는 나 혼자다. */
   readonly peers = new Map<string, Peer>();
   private snow: Flake[] = [];
   private sparkles: Sparkle[] = [];
@@ -89,7 +86,6 @@ export class World {
     const [, y0, , y1] = this.scene.floor;
     this.me.x = this.me.tx = 135;
     this.me.y = this.me.ty = Math.min(y1, y0 + 50);
-    this.spawnNpcs();
     this.snow = spot.snow
       ? Array.from({ length: 120 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 10 + Math.random() * 20, ph: Math.random() * 7, big: Math.random() < 0.22 }))
       : [];
@@ -98,29 +94,13 @@ export class World {
       : Array.from({ length: 30 }, () => ({ x: Math.random() * W, y: Math.random() * 300, p: Math.random() * 7, s: 1 + Math.random() * 2 }));
   }
 
-  private spawnNpcs(): void {
-    if (this.online) {
-      this.npcs = [];
-      return;
-    }
-    const [x0, y0, x1, y1] = this.scene.floor;
-    const r = rng((Date.now() & 0xffff) + 1);
-    this.npcs = Array.from({ length: NPC_COUNT }, (_, k) => {
-      const x = x0 + r() * (x1 - x0);
-      const y = y0 + r() * (y1 - y0);
-      return { x, y, tx: x, ty: y, dir: 0, moving: false, wait: r() * 4, speed: 12 + r() * 12, seed: k * 5 + 1, look: randomLook(r) };
-    });
-  }
-
   setLook(look: Look): void {
     this.me.look = look;
   }
 
+  /** 방에서 나오면 함께 있던 사람들을 지운다. */
   setOnline(on: boolean): void {
-    if (this.online === on) return;
-    this.online = on;
     if (!on) this.peers.clear();
-    this.spawnNpcs();
   }
 
   /** 방에 처음 들어왔거나 새 사람이 들어왔을 때 */
@@ -192,20 +172,6 @@ export class World {
     }
     moveToward(this.me, dt);
     for (const p of this.peers.values()) moveToward(p, dt);
-    const [x0, y0, x1, y1] = this.scene.floor;
-    for (const e of this.npcs) {
-      if (e.wait > 0) {
-        e.wait -= dt;
-        e.moving = false;
-        continue;
-      }
-      if (moveToward(e, dt)) {
-        e.wait = 1 + Math.random() * 5;
-        e.tx = x0 + Math.random() * (x1 - x0);
-        e.ty = y0 + Math.random() * (y1 - y0);
-        if (Math.random() < 0.4) e.dir = 0;
-      }
-    }
     for (const f of this.snow) {
       f.y += f.v * dt;
       f.x += Math.sin(f.y / 22 + f.ph) * 0.2;
@@ -244,7 +210,7 @@ export class World {
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
     if (this.scene.train) drawTrain(c, t, this.scene.train);
     const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
-    const all: Walker[] = [...this.npcs, ...here, this.me].sort((a, b) => a.y - b.y);
+    const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
     for (const e of all) drawAvatar(c, e, t);
     for (const f of this.snow) {
       c.globalAlpha = f.big ? 0.95 : 0.7;
