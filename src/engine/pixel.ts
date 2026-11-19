@@ -96,6 +96,28 @@ export function vgrad(c: Ctx, y0: number, y1: number, a: string, b: string, step
   c.putImageData(img, 0, y0);
 }
 
+/**
+ * 완성된 배경의 색을 채널마다 levels 단계로 줄이고, 단계 사이는 베이어 점무늬로 섞는다.
+ * 매끈한 빛 번짐까지 픽셀 아트처럼 보이게 그림 전체의 질감을 맞춘다.
+ */
+export function posterize(c: Ctx, levels = 18): void {
+  const img = c.getImageData(0, 0, W, H);
+  const d = img.data;
+  const step = 255 / (levels - 1);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const o = (y * W + x) * 4;
+      const th = BAYER[(y & 3) * 4 + (x & 3)];
+      for (let ch = 0; ch < 3; ch++) {
+        const v = d[o + ch] / step;
+        const lo = Math.floor(v);
+        d[o + ch] = Math.min(255, Math.round((v - lo > th ? lo + 1 : lo) * step));
+      }
+    }
+  }
+  c.putImageData(img, 0, 0);
+}
+
 /** 장면을 그리는 동안 빛 번짐(glow) 위치를 모아 조명 레이어의 광원으로 쓴다. */
 export interface Glow {
   x: number;

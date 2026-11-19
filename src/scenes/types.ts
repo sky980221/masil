@@ -46,6 +46,8 @@ export interface CrowdLine {
 export interface Spot {
   key: string;
   night?: Night;
+  /** 반짝이는 바닥이라 캐릭터가 비쳐 보인다 */
+  glossy?: boolean;
   crowd?: CrowdLine;
   /** 위쪽 탭에 보이는 짧은 이름 */
   chip: string;

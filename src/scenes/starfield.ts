@@ -8,6 +8,7 @@ export const starfield: Spot = {
   chip: '삼성 별마당',
   name: '삼성 별마당 도서관',
   snow: false,
+  glossy: true,
   night: { color: '#1a1008', alpha: 0.14 },
   build(c, r) {
     const L: Light[] = [];

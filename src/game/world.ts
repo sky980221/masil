@@ -1,5 +1,5 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
-import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows } from '../engine/pixel';
+import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows, posterize } from '../engine/pixel';
 import { type Look, normalizeLook } from '../avatar/options';
 import { type AvatarPose, drawAvatar } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
@@ -39,8 +39,24 @@ interface Flake {
   y: number;
   v: number;
   ph: number;
-  big: boolean;
+  /** 0 먼 눈, 1 중간, 2 가까운 눈 */
+  z: number;
 }
+
+/** 눈밭에 남는 발자국 */
+interface Print {
+  x: number;
+  y: number;
+  age: number;
+}
+
+const SNOW_LAYERS = [
+  { n: 70, size: 1, speed: [8, 13], alpha: 0.5, sway: 0.12 },
+  { n: 50, size: 1, speed: [15, 24], alpha: 0.8, sway: 0.22 },
+  { n: 18, size: 2, speed: [28, 40], alpha: 0.95, sway: 0.4 },
+] as const;
+const PRINT_LIFE = 7;
+const MAX_PRINTS = 240;
 
 interface Sparkle {
   x: number;
@@ -75,6 +91,10 @@ export class World {
   private glows: Glow[] = [];
   private readonly lighting = new Lighting();
   private far: FarWalker[] = [];
+  private prints: Print[] = [];
+  /** 걸은 거리를 재서 일정 간격마다 발자국을 찍는다 */
+  private stride = new WeakMap<Walker, { x: number; y: number; left: boolean }>();
+  private readonly mirror = makeCanvas(48, 64);
 
   constructor(look: Look, spotIndex: number) {
     this.me = { x: 135, y: 420, tx: 135, ty: 420, dir: 0, moving: false, seed: 3, look, wait: 0, speed: MY_SPEED };
@@ -89,6 +109,7 @@ export class World {
     if (!hit) {
       const bg = makeCanvas(W, H);
       const { result: scene, glows } = collectGlows(() => spot.build(bg.getContext('2d')!, rng(1000 + SPOTS.indexOf(spot) * 77)));
+      posterize(bg.getContext('2d')!);
       hit = { bg, scene, glows };
       this.cache.set(spot.key, hit);
     }
@@ -104,8 +125,11 @@ export class World {
     this.me.x = this.me.tx = 135;
     this.me.y = this.me.ty = Math.min(y1, y0 + 50);
     this.snow = spot.snow
-      ? Array.from({ length: 120 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 10 + Math.random() * 20, ph: Math.random() * 7, big: Math.random() < 0.22 }))
+      ? SNOW_LAYERS.flatMap((L, z) =>
+          Array.from({ length: L.n }, () => ({ x: Math.random() * W, y: Math.random() * H, v: L.speed[0] + Math.random() * (L.speed[1] - L.speed[0]), ph: Math.random() * 7, z })),
+        )
       : [];
+    this.prints = [];
     this.sparkles = spot.snow
       ? []
       : Array.from({ length: 30 }, () => ({ x: Math.random() * W, y: Math.random() * 300, p: Math.random() * 7, s: 1 + Math.random() * 2 }));
@@ -199,10 +223,29 @@ export class World {
     }
     for (const f of this.snow) {
       f.y += f.v * dt;
-      f.x += Math.sin(f.y / 22 + f.ph) * 0.2;
+      f.x += Math.sin(f.y / 22 + f.ph) * SNOW_LAYERS[f.z].sway;
       if (f.y > H) {
         f.y = -2;
         f.x = Math.random() * W;
+      }
+    }
+    // 눈 오는 날엔 걸은 자리에 발자국이 남았다가 사라진다
+    if (this.spot.snow) {
+      for (const p of this.prints) p.age += dt;
+      while (this.prints.length && this.prints[0].age > PRINT_LIFE) this.prints.shift();
+      for (const e of [this.me, ...this.peers.values()]) {
+        if ((e as Peer).spot !== undefined && (e as Peer).spot !== this.spot.key) continue;
+        const last = this.stride.get(e);
+        if (!last || !e.moving) {
+          this.stride.set(e, { x: e.x, y: e.y, left: last?.left ?? false });
+          continue;
+        }
+        if (Math.hypot(e.x - last.x, e.y - last.y) >= 5) {
+          const left = !last.left;
+          this.prints.push({ x: Math.round(e.x + (left ? -2 : 2)), y: Math.round(e.y), age: 0 });
+          if (this.prints.length > MAX_PRINTS) this.prints.shift();
+          this.stride.set(e, { x: e.x, y: e.y, left });
+        }
       }
     }
   }
@@ -219,9 +262,16 @@ export class World {
         R(c, f.x + (step ? 1 : 0), cl.y - 2, 1, 2, cl.col);
       }
     }
+    for (const p of this.prints) {
+      c.globalAlpha = 0.55 * (1 - p.age / PRINT_LIFE);
+      R(c, p.x - 1, p.y - 1, 2, 1, '#8f9ab8');
+      P(c, p.x - 1, p.y, '#b9c2d8');
+    }
+    c.globalAlpha = 1;
     if (this.scene.train) drawTrain(c, t, this.scene.train);
     const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
     const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
+    if (this.spot.glossy) for (const e of all) this.drawReflection(c, e, t);
     for (const e of all) drawAvatar(c, e, t);
 
     // 2) 밤이면 어둠을 덮고 광원 자리만 밝힌다
@@ -230,7 +280,8 @@ export class World {
 
     // 3) 스스로 빛나는 것들은 어둠 위에: 전구, 반짝임, 미디어 파사드, 전광판
     for (const l of this.scene.lights) {
-      const b = (Math.sin(t * l.s + l.p) + 1) / 2;
+      // 제각각 깜빡임 + 아래에서 위로 올라가는 느린 빛 물결
+      const b = ((Math.sin(t * l.s + l.p) + 1) / 2) * 0.65 + ((Math.sin(t * 1.6 + l.y * 0.045) + 1) / 2) * 0.35;
       if (b < 0.25 && !l.big) continue;
       c.globalAlpha = 0.45 + b * 0.55;
       P(c, l.x, l.y, l.col);
@@ -253,13 +304,33 @@ export class World {
     this.scene.animate?.(c, t);
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
 
-    // 4) 눈과 가장자리 그늘
+    // 4) 먼 눈 → 그늘 → 가까운 눈 순서로 깊이를 낸다
+    this.drawSnow(c, 0, 1);
+    c.drawImage(this.vignette, 0, 0);
+    this.drawSnow(c, 2, 2);
+  }
+
+  private drawSnow(c: Ctx, z0: number, z1: number): void {
     for (const f of this.snow) {
-      c.globalAlpha = f.big ? 0.95 : 0.7;
-      R(c, f.x, f.y, f.big ? 2 : 1, f.big ? 2 : 1, '#ffffff');
+      if (f.z < z0 || f.z > z1) continue;
+      const L = SNOW_LAYERS[f.z];
+      c.globalAlpha = L.alpha;
+      R(c, f.x, f.y, L.size, L.size, '#ffffff');
     }
     c.globalAlpha = 1;
-    c.drawImage(this.vignette, 0, 0);
+  }
+
+  /** 반짝이는 바닥에 비친 모습: 발밑을 기준으로 뒤집어 흐리게 그린다 */
+  private drawReflection(c: Ctx, e: Walker, t: number): void {
+    const m = this.mirror.getContext('2d')!;
+    m.clearRect(0, 0, 48, 64);
+    drawAvatar(m, { ...e, x: 24, y: 58 }, t);
+    c.save();
+    c.globalAlpha = 0.16;
+    c.translate(0, 2 * Math.round(e.y));
+    c.scale(1, -1);
+    c.drawImage(this.mirror, Math.round(e.x) - 24, Math.round(e.y) - 58);
+    c.restore();
   }
 }
 

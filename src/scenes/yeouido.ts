@@ -8,6 +8,7 @@ export const yeouido: Spot = {
   chip: '여의도 더현대',
   name: '여의도 더현대 서울',
   snow: false,
+  glossy: true,
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 300 };
