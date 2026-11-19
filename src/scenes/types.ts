@@ -8,12 +8,18 @@ export interface BoardSpot {
   hang?: boolean;
 }
 
-/** 트리 둘레를 도는 장난감 기차 궤도 (타원) */
+/** 트리 둘레를 도는 장난감 기차 궤도 (타원). 공중 와이어를 타고 돌 수도 있다. */
 export interface TrainTrack {
   cx: number;
   cy: number;
   rx: number;
   ry: number;
+  /** 한 바퀴 속도 배율 (기본 1) */
+  speed?: number;
+  /** 출발 위치를 어긋나게 */
+  phase?: number;
+  /** 칸 수 (기관차 포함, 기본 4) */
+  cars?: number;
 }
 
 /** 아바타가 걸어 다닐 수 있는 바닥 영역 [x0, y0, x1, y1] */
@@ -23,7 +29,7 @@ export interface SceneBuild {
   lights: Light[];
   floor: Floor;
   board?: BoardSpot;
-  train?: TrainTrack;
+  trains?: TrainTrack[];
   /** 매 프레임 배경 위에 덧그리는 움직이는 부분 (미디어 파사드 등) */
   animate?: (c: Ctx, t: number) => void;
 }

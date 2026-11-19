@@ -1,102 +1,184 @@
-// 영종 파라다이스시티: 돔 천장 아래 상점가, 아치 창의 전구 커튼, 트리를 도는 장난감 기차
-import { type Light, type WallPainter, H, R, P, mix, hash, vgrad, glow, line, perspWall, perspFloor, reflect } from '../engine/pixel';
-import { drawTree, drawChalet, drawStar } from '../engine/props';
+// 영종 파라다이스시티 플라자: 높은 실내 광장. 어두운 슬랫 천장과 유리 띠, 베이지 석조 아케이드,
+// 빨간 기차역 건물 위에 선 트리, 공중 와이어를 타고 트리 둘레를 도는 장난감 기차, 빨강·크림 마켓 부스.
+import { type Ctx, type Light, type WallPainter, W, H, R, P, mix, hash, vgrad, glow, line, perspWall, perspFloor } from '../engine/pixel';
+import { drawTree, drawChalet } from '../engine/props';
 import type { Spot, TrainTrack } from './types';
+
+const RED = '#c8202a';
+const RED_D = '#8e1418';
+const CREAM = '#f3e6c8';
+const GOLD = '#d9a441';
+const STONE = '#c9b49a';
+const STONE_D = '#a8927a';
+const BULB = '#ffe9a8';
 
 export const yeongjong: Spot = {
   key: 'yeongjong',
   chip: '영종 파라다이스시티',
   name: '영종 파라다이스시티',
   snow: false,
-  glossy: true,
-  night: { color: '#160d30', alpha: 0.22 },
+  night: { color: '#1a1208', alpha: 0.12 },
   build(c, r) {
     const L: Light[] = [];
     const vp = { x: 135, y: 300 };
 
-    // 돔 천장
-    vgrad(c, 0, 260, '#1a1233', '#40306a');
+    // 높고 비스듬한 슬랫 천장 + 유리 띠
+    vgrad(c, 0, 120, '#1f1e22', '#3a383d', 6);
+    for (let x = -200; x <= 470; x += 9) line(c, x, 0, x + (vp.x - x) * 0.36, 112, '#2b2a2e');
+    R(c, 0, 104, W, 14, '#c9d6df');
+    for (let x = 0; x < W; x += 12) R(c, x, 104, 1, 14, '#8b98a3');
+    R(c, 0, 117, W, 2, '#5d5a58');
+    glow(c, 135, 110, 120, '#ffffff', 0.12);
+    // 천장에 매달린 각진 거울 패널
+    for (let y = 22; y < 74; y++) R(c, 182 - (y - 22) * 0.5, y, 30 + (y - 22) * 0.9, 1, mix('#cfd3d8', '#7f858c', (y - 22) / 52));
+
+    // 안쪽: 유리 커튼월
+    R(c, 88, 118, 94, 210, '#4a5562');
+    for (let x = 88; x < 182; x += 8) R(c, x, 118, 1, 210, '#2f3843');
+    for (let y = 118; y < 328; y += 14) R(c, 88, y, 94, 1, '#2f3843');
     c.globalAlpha = 0.35;
-    for (let rr = 110; rr <= 330; rr += 28) for (let a = 0; a < Math.PI; a += 0.004) P(c, 135 + Math.cos(a) * rr * 1.3, -70 + Math.sin(a) * rr, '#8a7ab8');
-    for (let a = 0.15; a < Math.PI; a += 0.2) line(c, 135, -70, 135 + Math.cos(a) * 420, -70 + Math.sin(a) * 330, '#8a7ab8');
+    for (let i = 0; i < 40; i++) R(c, 89 + ((r() * 11) | 0) * 8, 119 + ((r() * 14) | 0) * 14, 7, 13, r() < 0.5 ? '#ffd98a' : '#8fa3b6');
     c.globalAlpha = 1;
-    glow(c, 135, 40, 120, '#c9b6ff', 0.18);
 
-    // 안쪽 벽: 아치 창과 전구 커튼, 금색 기둥
-    R(c, 84, 120, 102, 200, '#2f2452');
-    for (let i = 0; i < 3; i++) {
-      const x = 90 + i * 32;
-      const cx = x + 12;
-      const y0 = 134;
-      for (let dy = 0; dy < 12; dy++) {
-        const hw = Math.round(Math.sqrt(144 - (12 - dy) ** 2));
-        R(c, cx - hw, y0 + dy, hw * 2, 1, '#5b4a8f');
-      }
-      R(c, x, y0 + 12, 24, 150, '#5b4a8f');
-      R(c, cx, y0, 1, 162, '#3b2d66');
-      for (let s = 0; s < 4; s++) {
-        for (let y = y0 + 4 + s * 2; y < y0 + 160; y += 6) {
-          const lx = x + 3 + s * 6;
-          c.globalAlpha = 0.3;
-          P(c, lx, y, '#ffe6f4');
-          c.globalAlpha = 1;
-          L.push({ x: lx, y, col: '#ffe6f4', s: 0.8 + r(), p: y * 0.2 + s });
-        }
+    // 무광 베이지 돌바닥 + 큰 마름모 무늬
+    perspFloor(c, vp, 318, H, '#d8cbb8', '#c6b7a1', 26);
+    for (let x = -W; x <= W * 2; x += 52) {
+      for (let y = 318; y < H; y++) {
+        const t = (y - vp.y) / (H - vp.y);
+        P(c, vp.x + (x - vp.x) * t + (y - 318) * 0.9, y, '#c2b39b');
       }
     }
-    for (let x = 84; x < 186; x += 34) R(c, x, 120, 4, 200, '#c9a14a');
 
-    perspFloor(c, vp, 316, H, '#ddd3ea', '#cec2de', 28);
-
-    // 양옆 상점가
-    const shop: WallPainter = (c, X, s, u, k, ya, yb) => {
+    // 양옆: 석조 건물. 1층은 둥근 아치 아케이드, 위층은 높고 어두운 창 격자
+    const facade: WallPainter = (c, X, s, u, k, ya, yb) => {
       const h = yb - ya;
-      const id = Math.floor(u * 2);
-      const f = u * 2 - id;
-      R(c, X, ya, 1, h, '#3b2d66');
-      if (f < 0.09) {
-        R(c, X, ya, 1, h, '#c9a14a');
-        R(c, X, ya, 1, 1, '#f6dc9a');
-        return;
+      const id = Math.floor(u * 2.6);
+      const f = u * 2.6 - id;
+      R(c, X, ya, 1, h, mix(STONE, STONE_D, (1 - s) * 0.6));
+      R(c, X, ya, 1, Math.max(1, s * 2), '#dcc9ad');
+      if (k < 3) {
+        if (f > 0.25 && f < 0.75) R(c, X, ya + h * 0.18, 1, h * 0.62, '#3a3540');
+      } else if (f > 0.12 && f < 0.88) {
+        const arc = Math.sqrt(1 - ((f - 0.5) / 0.38) ** 2);
+        const top = ya + h * (0.5 - 0.35 * arc);
+        R(c, X, top, 1, yb - top, '#ffcf8a');
+        R(c, X, top, 1, 1, '#b9a07c');
+        if (hash(id * 13 + Math.floor(f * 10)) % 5 === 0) R(c, X, yb - h * 0.3, 1, h * 0.3, '#7a4a2a');
       }
-      R(c, X, ya + h * 0.18, 1, h * 0.08, mix('#e8436a', '#5b8fd6', (hash(id + k * 7) % 3) / 2));
-      R(c, X, ya + h * 0.3, 1, h * 0.62, mix('#ffcf8a', '#ff9ad5', (hash(id * 5 + k) % 4) / 6));
-      if (hash(id * 9 + k) % 2 && f > 0.4 && f < 0.5) R(c, X, ya + h * 0.55, 1, h * 0.37, '#5a3f6e');
-      R(c, X, yb - 1, 1, 1, '#c9a14a');
-      if (Math.floor(u * 12) !== Math.floor((u + 0.015 / s) * 12)) L.push({ x: X, y: Math.round(ya + h * 0.16), col: '#fff2b0', s: 2, p: u * 9 + k });
+      if (k === 3 && Math.floor(u * 10) !== Math.floor((u + 0.02) * 10)) L.push({ x: X, y: Math.round(ya + h * 0.12), col: BULB, s: 1.5, p: u * 6 });
     };
-    perspWall(c, 'L', vp, 84, 70, 382, 2, shop);
-    perspWall(c, 'R', vp, 84, 70, 382, 2, shop);
+    perspWall(c, 'L', vp, 88, 112, 382, 4, facade);
+    perspWall(c, 'R', vp, 88, 112, 382, 4, facade);
+    glow(c, 40, 340, 60, '#ffcf7a', 0.2);
+    glow(c, 230, 340, 60, '#ffcf7a', 0.2);
 
-    // 매달린 별
-    for (let i = 0; i < 12; i++) {
-      const x = (14 + i * 22 + r() * 6) | 0;
-      const len = (14 + r() * 50) | 0;
-      R(c, x, 0, 1, len, '#8a7ab8');
-      drawStar(c, x, len + 4, '#ffd34d', true);
-      glow(c, x, len + 4, 10, '#ffe08a', 0.35);
-      L.push({ x, y: len + 4, col: '#fff7c2', s: 1 + r() * 2, p: r() * 7, big: true });
+    // 트리에서 벽으로 늘어진 전구 줄
+    const swags: [number, number][] = [[0, 200], [270, 200], [20, 150], [250, 150]];
+    for (const [ex, ey] of swags) {
+      for (let t = 0.05; t <= 1; t += 0.03) {
+        const x = Math.round(135 + (ex - 135) * t);
+        const y = Math.round(96 + (ey - 96) * t + Math.sin(t * Math.PI) * 22);
+        c.globalAlpha = 0.35;
+        P(c, x, y, BULB);
+        c.globalAlpha = 1;
+        L.push({ x, y, col: BULB, s: 1 + r(), p: r() * 7 });
+      }
     }
 
-    // 기차 선로
-    const T: TrainTrack = { cx: 135, cy: 346, rx: 118, ry: 20 };
-    for (let a = 0; a < Math.PI * 2; a += 0.12) R(c, T.cx + Math.cos(a) * T.rx - 2, T.cy + Math.sin(a) * T.ry - 1, 5, 4, '#9a7e62');
-    for (let a = 0; a < Math.PI * 2; a += 0.005) {
-      const x = T.cx + Math.cos(a) * T.rx;
-      const y = T.cy + Math.sin(a) * T.ry;
-      P(c, x, y - 1, '#6b5a4a');
-      P(c, x, y + 2, '#6b5a4a');
+    // 섬 모양의 낮은 단
+    for (let dy = 0; dy < 16; dy++) {
+      const hw = 96 * Math.sqrt(Math.max(0, 1 - ((dy - 8) / 8.5) ** 2));
+      R(c, 135 - hw, 318 + dy, hw * 2, 1, dy < 3 ? '#e4d8c4' : '#b9a78f');
     }
 
-    L.push(...drawChalet(c, r, 4, 356, 42, 30, '#5b8fd6'));
-    L.push(...drawChalet(c, r, 224, 356, 42, 30, '#e8436a'));
+    // 빨간 기차역 건물 (트리 받침)
+    const bx = 93;
+    const bw = 84;
+    const by = 264;
+    R(c, bx, by, bw, 318 - by, RED);
+    R(c, bx + bw - 10, by, 10, 318 - by, RED_D);
+    R(c, bx - 3, by - 4, bw + 6, 5, CREAM);
+    R(c, bx - 3, by - 5, bw + 6, 1, GOLD);
+    for (const px of [bx, bx + 20, bx + bw - 24, bx + bw - 4]) R(c, px, by + 1, 4, 318 - by - 1, CREAM);
+    const ax = bx + bw / 2;
+    for (let dy = 0; dy < 16; dy++) {
+      const hw = Math.round(Math.sqrt(256 - (16 - dy) ** 2) * 0.95);
+      R(c, ax - hw, by + 10 + dy, hw * 2, 1, dy < 8 ? '#ffe2a6' : '#ffcf8a');
+    }
+    R(c, ax - 15, by + 26, 30, 318 - by - 26, '#ffcf8a');
+    for (let a = 0; a < Math.PI + 0.01; a += Math.PI / 6) line(c, ax, by + 26, ax + Math.cos(a) * 14, by + 26 - Math.sin(a) * 14, GOLD);
+    R(c, ax - 16, by + 26, 32, 1, GOLD);
+    glow(c, ax, by + 36, 30, '#ffcf7a', 0.4);
+    for (const wx of [bx + 7, bx + bw - 16]) {
+      R(c, wx, by + 18, 9, 20, '#ffd98a');
+      R(c, wx + 1, by + 16, 7, 2, '#ffd98a');
+      R(c, wx + 4, by + 16, 1, 22, GOLD);
+    }
+    // 시계
+    for (let dy = -5; dy <= 5; dy++) {
+      const hw = Math.round(Math.sqrt(25 - dy * dy));
+      R(c, ax - hw, by - 12 + dy, hw * 2 + 1, 1, CREAM);
+    }
+    P(c, ax, by - 15, RED_D);
+    P(c, ax, by - 14, RED_D);
+    P(c, ax + 1, by - 12, RED_D);
+    P(c, ax + 2, by - 12, RED_D);
+    R(c, ax - 6, by - 18, 13, 1, GOLD);
+
+    // 트리: 좁고 높은 원뿔, 따뜻한 흰 전구, 빨간 공과 리본, 금색 별
     L.push(...drawTree(c, r, {
-      cx: 135, base: 316, h: 205, w: 146, tiers: 5, green: '#2e6a52', dark: '#225440',
-      orn: ['#e8436a', '#ffd34d', '#ffffff', '#b48cff'], ornN: 70, light: ['#ffe9a8', '#ff9ad5'], lightN: 130,
-      star: '#ffd34d', pot: '#5b4a8f', garland: '#ffd34d', gifts: ['#e8436a', '#5b8fd6', '#ffd34d', '#b48cff'],
-      glow: '#ffb3e0', glowA: 0.2,
+      cx: 135, base: by - 18, h: 168, w: 96, tiers: 6, green: '#2f4a2c', dark: '#1e3320',
+      orn: [RED, RED, RED_D, GOLD], ornN: 80, light: [BULB, '#fff6dc'], lightN: 160,
+      star: '#f2c14e', garland: RED, glow: '#ffd98a', glowA: 0.22, trunk: '#3a2a1a', pot: RED_D, potTop: GOLD,
     }));
-    reflect(c, 331, 110, 0.16);
-    return { lights: L, floor: [14, 380, 256, 462], train: T, board: { x: 12, y: 84, hang: true } };
+
+    // 단 주변의 작은 트리들
+    const minis: [number, number, number][] = [[62, 332, 34], [208, 332, 34], [44, 342, 26], [226, 342, 26], [80, 338, 22], [190, 338, 22]];
+    for (const [x, y, h] of minis) {
+      L.push(...drawTree(c, r, { cx: x, base: y - 10, h, w: h * 0.62, tiers: 3, green: '#2f4a2c', dark: '#1e3320', orn: [RED], ornN: 6, light: [BULB], lightN: 12, glowA: 0.06 }));
+    }
+
+    // 빨강·크림 마켓 부스와 산타·사슴 인형
+    L.push(...drawChalet(c, r, 6, 372, 44, 30, RED));
+    L.push(...drawChalet(c, r, 220, 372, 44, 30, RED));
+    drawSanta(c, 58, 372);
+    drawDeer(c, 206, 372);
+
+    // 트리 둘레 공중 와이어 두 줄 (기차는 매 프레임 따로 그린다)
+    const tracks: TrainTrack[] = [
+      { cx: 135, cy: 196, rx: 66, ry: 9, speed: 1.1, phase: 0.2, cars: 3 },
+      { cx: 135, cy: 248, rx: 84, ry: 11, speed: 0.8, phase: 0.9, cars: 4 },
+    ];
+    c.globalAlpha = 0.5;
+    for (const T of tracks) for (let a = 0; a < Math.PI; a += 0.01) P(c, T.cx + Math.cos(a) * T.rx, T.cy + Math.sin(a) * T.ry, '#5a4a3a');
+    c.globalAlpha = 1;
+    return { lights: L, floor: [14, 380, 256, 462], trains: tracks, board: { x: 12, y: 132, hang: true } };
   },
 };
+
+function drawSanta(c: Ctx, x: number, base: number): void {
+  R(c, x - 5, base - 14, 10, 12, RED);
+  R(c, x - 5, base - 6, 10, 1, '#2a2228');
+  R(c, x - 5, base - 3, 10, 1, '#ffffff');
+  R(c, x - 3, base - 20, 6, 6, '#f6d0b2');
+  R(c, x - 4, base - 16, 8, 4, '#ffffff');
+  R(c, x - 4, base - 23, 8, 3, RED);
+  R(c, x - 4, base - 21, 8, 1, '#ffffff');
+  P(c, x + 4, base - 24, '#ffffff');
+  R(c, x - 4, base - 2, 3, 2, '#2a2228');
+  R(c, x + 1, base - 2, 3, 2, '#2a2228');
+}
+
+function drawDeer(c: Ctx, x: number, base: number): void {
+  const B = '#a8743a';
+  R(c, x - 6, base - 12, 12, 5, B);
+  for (const lx of [x - 5, x - 2, x + 2, x + 4]) R(c, lx, base - 7, 1, 7, '#7a5226');
+  R(c, x + 4, base - 18, 4, 6, B);
+  R(c, x + 6, base - 17, 3, 3, B);
+  P(c, x + 8, base - 16, '#2a1f2b');
+  line(c, x + 5, base - 18, x + 3, base - 23, '#7a5226');
+  line(c, x + 7, base - 18, x + 9, base - 23, '#7a5226');
+  P(c, x + 2, base - 22, '#7a5226');
+  P(c, x + 10, base - 22, '#7a5226');
+  R(c, x - 6, base - 12, 12, 1, mix(B, '#ffffff', 0.2));
+}

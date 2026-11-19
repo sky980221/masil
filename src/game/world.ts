@@ -268,7 +268,7 @@ export class World {
       P(c, p.x - 1, p.y, '#b9c2d8');
     }
     c.globalAlpha = 1;
-    if (this.scene.train) drawTrain(c, t, this.scene.train);
+    for (const tr of this.scene.trains ?? []) drawTrain(c, t, tr);
     const here = [...this.peers.values()].filter((p) => p.spot === this.spot.key);
     const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
     if (this.spot.glossy) for (const e of all) this.drawReflection(c, e, t);
@@ -364,13 +364,14 @@ function makeVignette(): HTMLCanvasElement {
   return cv;
 }
 
-const TRAIN_CARS: [string, boolean][] = [['#d6334a', true], ['#3f7fd6', false], ['#2f9a62', false], ['#f6c453', false]];
+// 빨강·크림 빈티지 장난감 기차
+const TRAIN_CARS: [string, boolean][] = [['#c8202a', true], ['#f3e6c8', false], ['#c8202a', false], ['#f3e6c8', false]];
 const CARGO = ['#ffd34d', '#ffffff', '#e8436a'];
 
 /** 트리 앞쪽 반원만 지나가는 장난감 기차 */
 function drawTrain(c: Ctx, t: number, T: TrainTrack): void {
-  const u = (t * 0.06) % 1.4;
-  for (let k = TRAIN_CARS.length - 1; k >= 0; k--) {
+  const u = (t * 0.06 * (T.speed ?? 1) + (T.phase ?? 0)) % 1.4;
+  for (let k = Math.min(TRAIN_CARS.length, T.cars ?? 4) - 1; k >= 0; k--) {
     const a = Math.PI * (1 - (u - k * 0.07));
     if (a < 0 || a > Math.PI) continue;
     const x = Math.round(T.cx + Math.cos(a) * T.rx);

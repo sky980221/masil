@@ -1,147 +1,253 @@
-// 명동 롯데백화점: 조명으로 덮인 백화점 외벽, 쇼윈도, 입구 앞 빛 터널, 전구 감은 가로수
-import { type Light, W, H, R, P, vgrad, glow, perspFloor } from '../engine/pixel';
-import { drawLamp, drawLightTree, drawCrowd } from '../engine/props';
+// 명동 롯데백화점 본점: 넓고 평평한 베이지 석조 건물 위를 따뜻한 전구 선으로 그린 고전풍 외관.
+// 층층이 둥근 창, 계단식 기둥 탑, 1층 위 반원 아치 줄, 부채꼴 장식. 왼쪽엔 리본·선물 간판,
+// 오른쪽 둥근 모서리엔 남색 LED 화면, 가장자리엔 금색 원뿔 트리. 앞은 넓은 인도와 소나무, 인파.
+import { type Ctx, type Light, W, H, R, P, mix, vgrad, glow, line, perspFloor } from '../engine/pixel';
+import { drawTree, drawLamp, drawCrowd, drawStar } from '../engine/props';
 import type { Spot } from './types';
+
+const BULB = '#ffe9c4';
+const STONE = '#76573e';
+const STONE_LIT = '#9a785a';
+const AWNING = '#561c20';
+const WINDOW = '#ded3bd';
+const RIBBON = '#d8303a';
+const NAVY = '#183753';
+
+// 건물 영역
+const TOP = 112;
+const GROUND = 300; // 1층 시작
+const BASE = 330; // 인도 시작
+const MAIN_R = 208; // 본관 오른쪽 끝, 그 오른쪽은 둥근 모서리 동
 
 export const myeongdong: Spot = {
   key: 'myeongdong',
   chip: '명동 롯데백화점',
   name: '명동 롯데백화점',
-  snow: true,
-  night: { color: '#0a0820', alpha: 0.36 },
-  crowd: { y: 318, x0: 50, x1: 220, n: 8, col: '#1a1724' },
+  snow: false,
+  night: { color: '#0a0806', alpha: 0.3 },
+  crowd: { y: 356, x0: 0, x1: 270, n: 16, col: '#1c1612' },
   build(c, r) {
     const L: Light[] = [];
-    const vp = { x: 135, y: 250 };
-    const warm = '#fff1c8';
-    const ice = '#d6ecff';
-    const dot = (x: number, y: number, col: string, a: number) => {
-      c.globalAlpha = a;
-      P(c, x, y, col);
+    // 전구 한 알: 흐린 바탕을 깔고 깜빡임 목록에 넣는다
+    const bulb = (x: number, y: number, s = 1.2) => {
+      x = Math.round(x);
+      y = Math.round(y);
+      c.globalAlpha = 0.55;
+      P(c, x, y, BULB);
       c.globalAlpha = 1;
+      L.push({ x, y, col: BULB, s, p: (x * 0.31 + y * 0.17) % 7 });
+    };
+    const bulbLine = (x0: number, y0: number, x1: number, y1: number, gap = 3) => {
+      const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / gap));
+      for (let i = 0; i <= n; i++) bulb(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n);
+    };
+    const bulbArc = (cx: number, cy: number, rx: number, ry: number, gap = 3) => {
+      const n = Math.max(4, Math.round((Math.PI * (rx + ry)) / 2 / gap));
+      for (let i = 0; i <= n; i++) {
+        const a = Math.PI + (Math.PI * i) / n;
+        bulb(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
+      }
     };
 
-    vgrad(c, 0, 60, '#0b0a1c', '#1d1736');
-    R(c, 0, 60, W, 250, '#1d1736');
+    // 검은 밤하늘과 뒤쪽의 어두운 빌딩들, 유리 돔 탑
+    vgrad(c, 0, BASE, '#0a0a0a', '#15100d', 4);
+    for (const [x, w, h] of [[0, 40, 150], [36, 46, 120], [150, 50, 170], [196, 74, 140]] as const) {
+      R(c, x, TOP - h + 80, w, h, '#221a14');
+      for (let i = 0; i < (w * h) / 90; i++) {
+        c.globalAlpha = 0.5;
+        P(c, x + 2 + r() * (w - 4), TOP - h + 84 + r() * (h - 10), r() < 0.7 ? '#6a5a44' : '#ffd98a');
+      }
+      c.globalAlpha = 1;
+    }
+    for (let dy = 0; dy < 16; dy++) {
+      const hw = Math.round(Math.sqrt(256 - (16 - dy) ** 2) * 1.2);
+      R(c, 104 - hw, 34 + dy, hw * 2, 1, mix('#4a5a68', '#26303a', dy / 16));
+    }
+    R(c, 86, 50, 36, 62, '#1d1914');
+    glow(c, 104, 42, 24, '#9fc0d8', 0.15);
 
-    // 건물 외벽: 돌 벽, 층 사이 띠, 기둥, 창문
-    R(c, 6, 34, 258, 276, '#3a3142');
-    for (const y of [34, 96, 158, 220]) R(c, 6, y, 258, 4, '#4d4258');
-    for (let x = 6; x < 264; x += 43) R(c, x, 34, 5, 192, '#463c50');
-    for (let y = 42; y < 218; y += 12) {
-      for (let x = 13; x < 262; x += 7) {
-        if ((x - 6) % 43 < 6) continue;
-        R(c, x, y, 4, 8, r() < 0.15 ? '#4a3a2e' : '#251d2c');
-      }
-    }
-    // 옥상 테두리 전구와 기둥 사이 전구 커튼
-    for (let x = 8; x < 263; x += 3) {
-      P(c, x, 33, warm);
-      L.push({ x, y: 33, col: warm, s: 1.2 + r(), p: x * 0.2 });
-    }
-    for (let b = 0; b < 6; b++) {
-      const bx = 11 + b * 43;
-      for (let s = 0; s < 5; s++) {
-        const sx = bx + 3 + s * 7;
-        for (let y = 42; y < 214; y += 4) {
-          dot(sx, y, warm, 0.35);
-          if ((y + s * 4 + b) % 12 === 0) L.push({ x: sx, y, col: warm, s: 0.6 + r(), p: y * 0.05 + s });
-        }
-      }
-    }
-    // 가운데 눈꽃 장식
-    const mx = 135;
-    const my = 126;
-    R(c, mx - 42, my - 42, 84, 84, '#2a2232');
-    glow(c, mx, my, 60, '#9fd0ff', 0.25);
-    for (let a = 0; a < Math.PI * 2; a += 0.09) {
-      for (const rr of [38, 34]) {
-        const x = Math.round(mx + Math.cos(a) * rr);
-        const y = Math.round(my + Math.sin(a) * rr);
-        dot(x, y, ice, 0.4);
-        L.push({ x, y, col: ice, s: 1.5, p: a * 4 + rr });
-      }
-    }
-    for (let a = 0; a < 6; a++) {
-      const t = (a * Math.PI) / 3 - Math.PI / 2;
-      for (let d = 0; d <= 30; d += 2) {
-        const x = Math.round(mx + Math.cos(t) * d);
-        const y = Math.round(my + Math.sin(t) * d);
-        dot(x, y, ice, 0.5);
-        L.push({ x, y, col: ice, s: 1.2, p: d * 0.12 });
-      }
-      for (const d of [14, 24]) {
-        for (const sg of [-0.7, 0.7]) {
-          for (let e = 2; e <= 7; e += 2) {
-            const bx = mx + Math.cos(t) * d;
-            const by = my + Math.sin(t) * d;
-            const x = Math.round(bx + Math.cos(t + sg) * e);
-            const y = Math.round(by + Math.sin(t + sg) * e);
-            dot(x, y, ice, 0.5);
-            L.push({ x, y, col: ice, s: 1.2, p: (d + e) * 0.12 });
-          }
-        }
-      }
-    }
-
-    // 1층 쇼윈도와 입구
-    R(c, 6, 226, 258, 84, '#2f2836');
-    R(c, 6, 226, 258, 3, '#5a4e66');
-    for (const wx of [14, 62, 186, 234]) {
-      R(c, wx, 240, 30, 52, '#ffcf8a');
-      glow(c, wx + 15, 266, 30, '#ffcf7a', 0.35);
-      R(c, wx, 240, 30, 2, '#c98a3a');
-      for (let k = 0; k < 3; k++) {
-        const tx = wx + 6 + k * 9;
-        R(c, tx, 282 - (k % 2) * 4, 1, 6, '#5a3a24');
-        for (let i = 0; i < 8; i++) R(c, tx - i / 2, 274 - (k % 2) * 4 + i, i + 1, 1, '#2f7a52');
-      }
-      R(c, wx + 2, 286, 8, 6, '#d6334a');
-      R(c, wx + 20, 287, 7, 5, '#3f6fb6');
-    }
-    R(c, 104, 236, 62, 74, '#4a3a2a');
-    R(c, 108, 244, 54, 66, '#ffd99a');
-    glow(c, 135, 280, 40, '#ffcf7a', 0.45);
-    for (let i = 0; i < 14; i++) R(c, 104 + i, 236 - i * 0.6, 62 - i * 2, 1, '#5a4a3a');
-    for (let a = 0; a < Math.PI * 2; a += 0.18) {
-      P(c, 135 + Math.cos(a) * 9, 232 + Math.sin(a) * 9, '#2f7a52');
-      P(c, 135 + Math.cos(a) * 8, 232 + Math.sin(a) * 8, '#24563f');
-      P(c, 135 + Math.cos(a) * 10, 232 + Math.sin(a) * 10, '#24563f');
-    }
-    R(c, 132, 239, 3, 3, '#e2333f');
-    R(c, 136, 239, 3, 3, '#e2333f');
-    for (let x = 6; x < 264; x++) {
-      const y = 228 + Math.round(Math.abs(Math.sin((x - 6) / 10.75)) * 5);
-      P(c, x, y, '#2f6b4f');
-      P(c, x, y + 1, '#24563f');
-    }
-
-    // 인도와 광장
-    R(c, 0, 310, W, 22, '#3a3644');
-    R(c, 0, 331, W, 1, '#55506a');
-    perspFloor(c, vp, 332, H, '#2c2a35', '#36333f', 24);
-    for (let i = 0; i < 60; i++) {
-      c.globalAlpha = 0.2 + r() * 0.3;
-      R(c, r() * W, 333 + r() * 147, 2 + r() * 5, 1, '#dfe6f4');
+    // 본관: 넓고 평평한 석조 건물, 전구 빛에 따뜻하게 물든 벽
+    R(c, 0, TOP, MAIN_R, GROUND - TOP, STONE);
+    for (let y = TOP; y < GROUND; y++) {
+      c.globalAlpha = 0.5 * Math.sin(((y - TOP) / (GROUND - TOP)) * Math.PI);
+      R(c, 0, y, MAIN_R, 1, STONE_LIT);
     }
     c.globalAlpha = 1;
-    L.push(...drawLightTree(c, r, 24, 338, 110), ...drawLightTree(c, r, 246, 338, 110));
-    L.push(...drawLamp(c, r, 66, 332, '#4a4458', 46), ...drawLamp(c, r, 204, 332, '#4a4458', 46));
-    drawCrowd(c, r, 318, 60, 210, 14, '#1a1724');
+    for (let y = TOP + 6; y < GROUND; y += 9) for (let x = 4; x < MAIN_R; x += 7) R(c, x, y, 3, 4, '#5e4532');
+    R(c, 0, TOP - 3, MAIN_R, 3, '#8a6a4e');
+    bulbLine(0, TOP - 2, MAIN_R, TOP - 2, 3);
 
-    // 입구 앞 빛 터널 (먼 아치부터)
-    const arches: [number, number][] = [[338, 44], [350, 54], [366, 66], [388, 82]];
-    arches.forEach(([by, rx], k) => {
-      const ry = rx * 1.2;
-      R(c, 135 - rx - 1, by - ry * 0.15, 2, ry * 0.15, '#5a5068');
-      R(c, 135 + rx - 1, by - ry * 0.15, 2, ry * 0.15, '#5a5068');
-      for (let a = 0; a <= Math.PI + 0.001; a += 1.6 / rx) {
-        const x = Math.round(135 + Math.cos(a) * rx);
-        const y = Math.round(by - ry * 0.15 - Math.sin(a) * ry * 0.85);
-        dot(x, y, ice, 0.6);
-        L.push({ x, y, col: ice, s: 1.6, p: a * 3 + k });
+    // 계단식 기둥 탑 (전구로 그린 작은 직사각형 더미)
+    const towers = [6, 70, 134, 196];
+    for (const tx of towers) {
+      bulbLine(tx, TOP - 2, tx, GROUND - 4, 4);
+      bulbLine(tx + 8, TOP - 2, tx + 8, GROUND - 4, 4);
+      for (let k = 0; k < 3; k++) {
+        const w = 8 - k * 2;
+        const x0 = tx + k;
+        const y0 = TOP - 8 - k * 7;
+        bulbLine(x0, y0, x0 + w, y0, 2);
+        bulbLine(x0, y0, x0, y0 + 6, 2);
+        bulbLine(x0 + w, y0, x0 + w, y0 + 6, 2);
       }
-    });
-    return { lights: L, floor: [14, 372, 256, 462], board: { x: 186, y: 44 } };
+      bulb(tx + 4, TOP - 30, 2);
+    }
+
+    // 오른쪽 패널(70~134, 134~196): 부채꼴 장식 + 층층이 둥근 창
+    for (const [px0, px1] of [[78, 134], [142, 196]] as const) {
+      const cx = (px0 + px1) / 2;
+      bulbArc(cx, TOP + 26, (px1 - px0) / 2 - 2, 20, 3);
+      for (let a = 0; a <= 8; a++) {
+        const ang = Math.PI + (Math.PI * a) / 8;
+        bulbLine(cx, TOP + 26, cx + Math.cos(ang) * ((px1 - px0) / 2 - 6), TOP + 26 + Math.sin(ang) * 16, 4);
+      }
+      for (let row = 0; row < 3; row++) {
+        const wy = TOP + 36 + row * 48;
+        for (let wx = px0 + 2; wx + 12 <= px1; wx += 16) {
+          bulbArc(wx + 6, wy + 6, 6, 6, 3);
+          bulbLine(wx, wy + 6, wx, wy + 38, 4);
+          bulbLine(wx + 12, wy + 6, wx + 12, wy + 38, 4);
+          bulbLine(wx + 6, wy + 2, wx + 6, wy + 38, 5);
+        }
+      }
+    }
+
+    // 왼쪽 패널(14~70): 리본이 감긴 선물 더미와 작은 관람차·회전목마가 있는 큰 간판
+    drawGiftSign(c, r, 14, TOP + 8, 56, 170, bulb);
+
+    // 1층 위 반원 아치 줄
+    for (let x = 0; x < MAIN_R; x += 16) bulbArc(x + 8, GROUND - 2, 8, 9, 3);
+
+    // 1층: 낮고 어두운 줄에 빨간 차양, 빛나는 쇼윈도
+    R(c, 0, GROUND, MAIN_R, BASE - GROUND, '#2a2018');
+    for (let x = 4; x < MAIN_R - 10; x += 26) {
+      R(c, x, GROUND + 9, 20, BASE - GROUND - 12, WINDOW);
+      glow(c, x + 10, GROUND + 18, 16, '#ffe2b0', 0.3);
+      for (let k = 0; k < 20; k += 4) R(c, x + k, GROUND + 4, 4, 5, k % 8 ? AWNING : '#6e262a');
+      R(c, x + 3, BASE - 10, 5, 6, RIBBON);
+      R(c, x + 12, BASE - 9, 4, 5, '#3f6fb6');
+    }
+
+    // 오른쪽 둥근 모서리 동 + 남색 LED 화면 (매 프레임 반짝임)
+    for (let x = MAIN_R; x < W; x++) {
+      const f = (x - MAIN_R) / (W - MAIN_R);
+      R(c, x, TOP + 6, 1, BASE - TOP - 6, mix(STONE_LIT, '#4a3628', f * 0.8));
+    }
+    bulbLine(MAIN_R, TOP + 4, W, TOP + 10, 3);
+    const SX = MAIN_R + 8;
+    const SY = TOP + 30;
+    const SW = W - SX - 6;
+    const SH = 110;
+    R(c, SX - 2, SY - 2, SW + 4, SH + 4, '#2a2018');
+    R(c, SX, SY, SW, SH, NAVY);
+    glow(c, SX + SW / 2, SY + SH / 2, 50, '#6a9ad0', 0.25);
+
+    // 인도와 연석, 볼라드, 난간
+    perspFloor(c, { x: 135, y: 250 }, BASE, H, '#4a3f36', '#3e342c', 24);
+    R(c, 0, BASE, W, 3, '#6a5c50');
+    for (let x = 6; x < W; x += 18) {
+      R(c, x, 338, 3, 10, '#15110e');
+      R(c, x, 337, 3, 1, '#4a4038');
+    }
+    R(c, 0, 342, W, 1, '#2a2420');
+
+    // 양쪽 끝의 낮고 넓은 소나무
+    for (const px of [10, 42, 224]) drawPine(c, r, px, BASE + 4);
+
+    // 오른쪽 가장자리의 금색 원뿔 트리
+    L.push(...drawTree(c, r, {
+      cx: 246, base: 352, h: 150, w: 56, tiers: 5, green: '#b8913e', dark: '#8a6a2a',
+      orn: ['#fff3c4', '#e8c26a'], ornN: 30, light: ['#fff3c4', '#ffe9a8'], lightN: 110, star: '#ffe9a8', glow: '#e8c26a', glowA: 0.3,
+    }));
+
+    drawCrowd(c, r, 352, 0, 270, 30, '#16120e');
+    L.push(...drawLamp(c, r, 120, BASE + 2, '#2a2420', 44));
+
+    const animate = (c: Ctx, t: number) => drawScreen(c, t, SX, SY, SW, SH);
+    return { lights: L, floor: [14, 372, 256, 462], board: { x: 8, y: 18 }, animate };
   },
 };
+
+/** 왼쪽 큰 간판: 크림색 판 위로 빨간 리본이 고리를 그리며 감기고, 아래엔 선물 더미와 관람차·회전목마 */
+function drawGiftSign(c: Ctx, r: () => number, x: number, y: number, w: number, h: number, bulb: (x: number, y: number, s?: number) => void): void {
+  glow(c, x + w / 2, y + h / 2, 70, '#ffd9a0', 0.25);
+  // 머리글 자리: 크림색 띠 두 줄 (글자는 쓰지 않는다)
+  R(c, x + 4, y + 8, w - 8, 10, '#f3e6c8');
+  R(c, x + 8, y + 22, w - 16, 6, '#f3e6c8');
+  // 리본 고리
+  for (let a = 0; a < Math.PI * 4.2; a += 0.05) {
+    const rx = x + w / 2 + Math.cos(a) * (w / 2 - 4) * (1 - a / 30);
+    const ry = y + 14 + a * 9 + Math.sin(a * 2) * 6;
+    R(c, rx, ry, 2, 2, RIBBON);
+  }
+  // 관람차
+  const fx = x + 16;
+  const fy = y + 70;
+  for (let a = 0; a < Math.PI * 2; a += 0.2) bulb(fx + Math.cos(a) * 12, fy + Math.sin(a) * 12);
+  for (let a = 0; a < Math.PI; a += Math.PI / 4) line(c, fx - Math.cos(a) * 12, fy - Math.sin(a) * 12, fx + Math.cos(a) * 12, fy + Math.sin(a) * 12, '#c9a14a');
+  line(c, fx, fy, fx - 6, fy + 18, '#8a6a2a');
+  line(c, fx, fy, fx + 6, fy + 18, '#8a6a2a');
+  // 작은 회전목마 지붕(왕관 모양)
+  const cx = x + w - 16;
+  const cy = y + 88;
+  for (let i = 0; i < 8; i++) R(c, cx - i, cy - 8 + i, i * 2 + 1, 1, i % 2 ? RIBBON : '#f3e6c8');
+  drawStar(c, cx, cy - 11, '#ffd34d');
+  R(c, cx - 8, cy, 16, 10, '#ffcf8a');
+  // 선물 더미
+  const cols = [RIBBON, '#2f7a52', '#f6c453', '#5b8fd6', '#f3e6c8', RIBBON];
+  for (let i = 0; i < 9; i++) {
+    const gw = 8 + ((r() * 6) | 0);
+    const gh = 7 + ((r() * 6) | 0);
+    const gx = x + 2 + ((i * 6) % (w - 12));
+    const gy = y + h - 10 - gh - ((i / 3) | 0) * 9;
+    R(c, gx, gy, gw, gh, cols[i % cols.length]);
+    R(c, gx + (gw >> 1), gy, 1, gh, '#fff3c4');
+  }
+  // 별과 사탕
+  for (const [sx, sy] of [[x + 6, y + 40], [x + w - 8, y + 50], [x + w / 2, y + 58]] as const) drawStar(c, sx, sy, '#ffe066');
+  // 간판 둘레 전구
+  for (let i = 0; i <= w; i += 4) {
+    bulb(x + i, y);
+    bulb(x + i, y + h);
+  }
+  for (let i = 0; i <= h; i += 4) {
+    bulb(x, y + i);
+    bulb(x + w, y + i);
+  }
+}
+
+/** 낮고 넓게 퍼진 소나무 실루엣 */
+function drawPine(c: Ctx, r: () => number, x: number, base: number): void {
+  R(c, x + 10, base - 22, 3, 22, '#2a1f16');
+  for (let k = 0; k < 4; k++) {
+    const cy = base - 26 - k * 7;
+    const hw = 16 - k * 3 + r() * 3;
+    for (let dy = -3; dy <= 3; dy++) R(c, x + 11 - hw + Math.abs(dy), cy + dy, (hw - Math.abs(dy)) * 2, 1, k % 2 ? '#372f21' : '#2e2719');
+  }
+}
+
+/** 오른쪽 LED 화면: 남색 밤하늘에 작은 트리와 캐릭터들, 별이 반짝인다 */
+function drawScreen(c: Ctx, t: number, x: number, y: number, w: number, h: number): void {
+  R(c, x, y, w, h, NAVY);
+  for (let i = 0; i < 14; i++) {
+    const sx = x + ((i * 37) % w);
+    const sy = y + ((i * 23) % (h / 2));
+    if ((Math.sin(t * 2 + i) + 1) / 2 > 0.4) P(c, sx, sy, '#dfe8ff');
+  }
+  const cx = x + w / 2;
+  for (let i = 0; i < 40; i++) R(c, cx - i * 0.4, y + 30 + i * 1.6, i * 0.8 + 1, 2, i % 2 ? '#2f7a52' : '#3b8a5e');
+  drawStar(c, cx, y + 28, '#ffe066');
+  for (let i = 0; i < 10; i++) {
+    const on = Math.floor(t * 3 + i) % 3 !== 0;
+    if (on) P(c, cx - 12 + ((i * 7) % 24), y + 50 + ((i * 11) % 40), ['#ff6b6b', '#ffe066', '#7fd1ff'][i % 3]);
+  }
+  for (const [px, col] of [[x + 6, '#f2a7c0'], [x + w - 12, '#f6d0b2']] as const) {
+    const hop = Math.round(Math.abs(Math.sin(t * 3 + px)) * 3);
+    R(c, px, y + h - 18 - hop, 6, 6, col);
+    R(c, px + 1, y + h - 12 - hop, 4, 6, '#d6334a');
+  }
+  R(c, x, y + h - 6, w, 6, '#dfe8f4');
+  c.globalAlpha = 0.25;
+  for (let yy = y; yy < y + h; yy += 2) R(c, x, yy, w, 1, '#000000');
+  c.globalAlpha = 1;
+}
