@@ -12,6 +12,7 @@ import { Wardrobe } from './components/Wardrobe';
 import { Creator } from './components/Creator';
 import { PhotoDialog, RevealDialog } from './components/Dialogs';
 import { RoomPanel } from './components/RoomPanel';
+import { PoseBar } from './components/PoseBar';
 import { cleanRoomId, newRoomId } from './net/protocol';
 import { useRoom } from './net/useRoom';
 
@@ -40,6 +41,7 @@ export function App() {
   const [reveal, setReveal] = useState<{ index: number; isNew: boolean } | null>(null);
   const [photo, setPhoto] = useState<{ url: string; fileName: string } | null>(null);
   const [flashKey, setFlashKey] = useState(0);
+  const [posing, setPosing] = useState(false);
 
   // 광장은 한 번만 만들고, 장소와 옷은 아래 effect에서 바꿔 끼운다
   const [world] = useState(() => new World(look, spot));
@@ -98,14 +100,19 @@ export function App() {
         })}
       </nav>
 
-      <Stage world={world} keysEnabled={!anyOverlay} flashKey={flashKey} />
+      <Stage
+        world={world}
+        keysEnabled={!anyOverlay}
+        flashKey={flashKey}
+        overlay={posing ? <PoseBar world={world} onShoot={shoot} onClose={() => setPosing(false)} /> : null}
+      />
 
       <div className="actions">
         <button className={`gift-btn${hasGift ? ' has' : ''}`} aria-expanded={adventOpen} onClick={() => setAdventOpen(!adventOpen)}>
           선물 달력{hasGift && <span className="dot">NEW</span>}
         </button>
         <button onClick={() => setWardrobeOpen(true)}>옷장</button>
-        <button className="red" onClick={shoot}>
+        <button className="red" onClick={() => setPosing(true)} aria-pressed={posing}>
           사진 찍기
         </button>
       </div>

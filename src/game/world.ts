@@ -1,9 +1,9 @@
 // 광장 하나의 상태: 배경, 걸어 다니는 아바타들, 눈, 반짝임. 그리기와 갱신만 맡고 UI는 모른다.
 import { type Ctx, type Glow, W, H, R, P, mix, rng, makeCanvas, collectGlows, posterize } from '../engine/pixel';
 import { type Look, normalizeLook } from '../avatar/options';
-import { type AvatarPose, drawAvatar } from '../avatar/draw';
+import { type AvatarPose, type Pose, drawAvatar, headTop } from '../avatar/draw';
 import { SPOTS, type Spot, type SceneBuild, type TrainTrack } from '../scenes';
-import type { PeerState } from '../net/protocol';
+import type { ActKind, ActPayload, Emote, PeerState } from '../net/protocol';
 import { drawBoard } from './board';
 import { Lighting } from './lighting';
 
@@ -12,6 +12,24 @@ export interface Walker extends AvatarPose {
   ty: number;
   wait: number;
   speed: number;
+  /** 점프를 시작한 시각 (초) */
+  jumpAt?: number;
+  /** 머리 옆에 띄운 이모티콘 */
+  emote?: { kind: Emote; at: number };
+}
+
+const JUMP_TIME = 0.55;
+const JUMP_HEIGHT = 13;
+const EMOTE_TIME = 3;
+const clock = () => performance.now() / 1000;
+
+/** 착지할 때 튀는 눈 */
+interface Puff {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
 }
 
 /** 같은 방에 들어온 다른 사람 */
@@ -95,6 +113,9 @@ export class World {
   /** 걸은 거리를 재서 일정 간격마다 발자국을 찍는다 */
   private stride = new WeakMap<Walker, { x: number; y: number; left: boolean }>();
   private readonly mirror = makeCanvas(48, 64);
+  private puffs: Puff[] = [];
+  /** 내가 한 동작을 방에 알릴 때 쓴다 (useRoom이 연결) */
+  onAct?: (k: ActKind, v: string) => void;
 
   constructor(look: Look, spotIndex: number) {
     this.me = { x: 135, y: 420, tx: 135, ty: 420, dir: 0, moving: false, seed: 3, look, wait: 0, speed: MY_SPEED };
@@ -137,6 +158,33 @@ export class World {
 
   setLook(look: Look): void {
     this.me.look = look;
+  }
+
+  /** 스페이스바·두 번 탭: 제자리 점프 */
+  jump(): void {
+    if (this.me.jumpAt !== undefined) return;
+    this.me.jumpAt = clock();
+    this.onAct?.('jump', '');
+  }
+
+  emote(kind: Emote): void {
+    this.me.emote = { kind, at: clock() };
+    this.onAct?.('emote', kind);
+  }
+
+  setPose(pose: Pose): void {
+    if (this.me.pose === pose) return;
+    this.me.pose = pose;
+    this.onAct?.('pose', pose);
+  }
+
+  /** 방 친구의 동작 */
+  peerAct(a: ActPayload): void {
+    const p = this.peers.get(a.id);
+    if (!p) return;
+    if (a.k === 'jump') p.jumpAt = clock();
+    else if (a.k === 'emote') p.emote = { kind: a.v as Emote, at: clock() };
+    else p.pose = a.v as Pose;
   }
 
   /** 방에서 나오면 함께 있던 사람들을 지운다. */
@@ -192,8 +240,10 @@ export class World {
   /** 지금 보이는, 이름이 있는 사람들 (나 포함) */
   namedWalkers(): NamedWalker[] {
     const list: NamedWalker[] = [];
-    for (const p of this.peers.values()) if (p.spot === this.spot.key) list.push({ x: p.x, y: p.y, look: p.look, name: p.name, me: false });
-    if (this.name) list.push({ x: this.me.x, y: this.me.y, look: this.me.look, name: this.name, me: true });
+    // 점프 높이와 앉은 자세만큼 이름표도 같이 움직인다
+    const lift = (e: Walker) => e.y - (e.air ?? 0) - (!e.moving && e.pose === 'jump' ? 8 : 0) + (!e.moving && e.pose === 'sit' ? 6 : 0);
+    for (const p of this.peers.values()) if (p.spot === this.spot.key) list.push({ x: p.x, y: lift(p), look: p.look, name: p.name, me: false });
+    if (this.name) list.push({ x: this.me.x, y: lift(this.me), look: this.me.look, name: this.name, me: true });
     return list;
   }
 
@@ -213,6 +263,32 @@ export class World {
     }
     moveToward(this.me, dt);
     for (const p of this.peers.values()) moveToward(p, dt);
+    // 점프 높이와 착지
+    const now = clock();
+    for (const e of [this.me, ...this.peers.values()]) {
+      if (e.jumpAt === undefined) continue;
+      const p = (now - e.jumpAt) / JUMP_TIME;
+      if (p >= 1) {
+        e.jumpAt = undefined;
+        e.air = 0;
+        const here = !('spot' in e) || (e as Peer).spot === this.spot.key;
+        if (this.spot.snow && here) {
+          for (let i = 0; i < 8; i++) {
+            const a = Math.PI + (Math.PI * i) / 7;
+            this.puffs.push({ x: e.x + Math.cos(a) * 3, y: e.y, vx: Math.cos(a) * (14 + Math.random() * 10), vy: -8 - Math.random() * 14, life: 0.5 });
+          }
+        }
+      } else e.air = Math.sin(Math.PI * p) * JUMP_HEIGHT;
+      if (e.emote && now - e.emote.at > EMOTE_TIME) e.emote = undefined;
+    }
+    for (const e of [this.me, ...this.peers.values()]) if (e.emote && now - e.emote.at > EMOTE_TIME) e.emote = undefined;
+    for (const f of this.puffs) {
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vy += 60 * dt;
+      f.life -= dt;
+    }
+    this.puffs = this.puffs.filter((f) => f.life > 0);
     const cl = this.spot.crowd;
     if (cl) {
       for (const f of this.far) {
@@ -273,6 +349,11 @@ export class World {
     const all: Walker[] = [...here, this.me].sort((a, b) => a.y - b.y);
     if (this.spot.glossy) for (const e of all) this.drawReflection(c, e, t);
     for (const e of all) drawAvatar(c, e, t);
+    for (const f of this.puffs) {
+      c.globalAlpha = Math.max(0, f.life * 2);
+      R(c, f.x, f.y, 1, 1, '#f4f8ff');
+    }
+    c.globalAlpha = 1;
 
     // 2) 밤이면 어둠을 덮고 광원 자리만 밝힌다
     // 캐릭터가 어둠에 묻히지 않도록 사람마다 은은한 빛을 둔다
@@ -306,6 +387,8 @@ export class World {
     c.globalAlpha = 1;
     this.scene.animate?.(c, t);
     if (this.scene.board) drawBoard(c, t, this.scene.board, nowMs);
+    const nowS = clock();
+    for (const e of all) if (e.emote) drawEmote(c, e, nowS - e.emote.at);
 
     // 4) 먼 눈 → 그늘 → 가까운 눈 순서로 깊이를 낸다
     this.drawSnow(c, 0, 1);
@@ -405,4 +488,37 @@ function drawTrain(c: Ctx, t: number, T: TrainTrack): void {
       R(c, x - 4, y - 12, 8, 1, '#d6334a');
     }
   }
+}
+
+/** 머리 오른쪽 위에 뜨는 픽셀 말풍선. 처음엔 작게 튀어나오고 끝날 때 흐려진다. */
+function drawEmote(c: Ctx, e: Walker, age: number): void {
+  const pop = Math.min(1, age / 0.15);
+  const fade = Math.min(1, (EMOTE_TIME - age) / 0.4);
+  if (fade <= 0) return;
+  const air = e.air ?? 0;
+  const bx = Math.round(e.x + 9);
+  const by = Math.round(e.y - air - headTop(e.look) + 2 - Math.sin(age * 4) * 1);
+  const w = pop < 1 ? 9 : 15;
+  const h = pop < 1 ? 8 : 13;
+  c.globalAlpha = fade;
+  // 말풍선 몸통과 꼬리
+  R(c, bx, by - h, w, h, '#2b2118');
+  R(c, bx + 1, by - h + 1, w - 2, h - 2, '#fffaf0');
+  R(c, bx + 1, by, 2, 1, '#2b2118');
+  R(c, bx, by + 1, 1, 1, '#2b2118');
+  if (pop >= 1) {
+    const ix = bx + 3;
+    const iy = by - h + 3;
+    if (e.emote?.kind === 'heart') {
+      const rows = ['0110110', '1111111', '1111111', '0111110', '0011100', '0001000'];
+      rows.forEach((row, ry) => [...row].forEach((v, rx) => v === '1' && R(c, ix + rx * 1.25, iy + ry * 1.25, 1.25, 1.25, ry === 0 && rx === 1 ? '#ff8a96' : '#e2333f')));
+    } else {
+      for (let i = 0; i < 6; i++) R(c, ix + 4.5 - i * 0.75, iy + 1 + i * 1.25, 1 + i * 1.5, 1.25, i % 2 ? '#2f7a52' : '#3b8a5e');
+      R(c, ix + 4, iy + 8.5, 1.5, 1.25, '#6b4226');
+      R(c, ix + 4, iy - 0.5, 1.5, 1.5, '#f2c14e');
+      R(c, ix + 2.5, iy + 4, 1, 1, '#e2333f');
+      R(c, ix + 6, iy + 6, 1, 1, '#f2c14e');
+    }
+  }
+  c.globalAlpha = 1;
 }

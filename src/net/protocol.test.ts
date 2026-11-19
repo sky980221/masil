@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { admitted, diffPresence, cleanCoord, cleanLook, cleanMove, cleanName, cleanPresence, cleanRoomId, newPeerId, newRoomId } from './protocol';
+import { admitted, cleanAct, diffPresence, cleanCoord, cleanLook, cleanMove, cleanName, cleanPresence, cleanRoomId, newPeerId, newRoomId } from './protocol';
 
 describe('방 이름', () => {
   it('영문 소문자·숫자·하이픈 3~32자만 받는다', () => {
@@ -73,5 +73,16 @@ describe('정원', () => {
       { id: 'bbbbbbbb', joinedAt: 1 },
     ];
     expect([...admitted(list, 2)].sort()).toEqual(['aaaaaaaa', 'bbbbbbbb']);
+  });
+});
+
+describe('순간 동작', () => {
+  it('정해진 이모티콘과 포즈만 받는다', () => {
+    expect(cleanAct({ id: 'abcdef12', k: 'emote', v: 'heart' })).toEqual({ id: 'abcdef12', k: 'emote', v: 'heart' });
+    expect(cleanAct({ id: 'abcdef12', k: 'emote', v: 'skull' })).toBeNull();
+    expect(cleanAct({ id: 'abcdef12', k: 'pose', v: 'sit' })).toEqual({ id: 'abcdef12', k: 'pose', v: 'sit' });
+    expect(cleanAct({ id: 'abcdef12', k: 'pose', v: 'dance' })).toBeNull();
+    expect(cleanAct({ id: 'abcdef12', k: 'jump', v: 'whatever' })).toEqual({ id: 'abcdef12', k: 'jump', v: '' });
+    expect(cleanAct({ id: 'nope', k: 'jump' })).toBeNull();
   });
 });

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { W, H, SS, prepare } from '../engine/pixel';
 import { headTop } from '../avatar/draw';
 import { clockNow } from '../advent/calendar';
 import type { World } from '../game/world';
+import { EmoteButtons } from './EmoteButtons';
 
 interface Props {
   world: World;
@@ -10,14 +11,18 @@ interface Props {
   keysEnabled: boolean;
   /** 값이 바뀔 때마다 사진 플래시를 터뜨린다 */
   flashKey: number;
+  /** 광장 위에 겹쳐 띄울 것 (포즈 줄 등) */
+  overlay?: ReactNode;
 }
 
 /** 광장 캔버스. 매 프레임 갱신·그리기를 하고, 이름 있는 사람들 머리 위에 이름표를 붙인다. */
-export function Stage({ world, keysEnabled, flashKey }: Props) {
+export function Stage({ world, keysEnabled, flashKey, overlay }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tagsRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
   const [hint, setHint] = useState(true);
+  // 두 번 탭하면 점프
+  const lastTap = useRef({ t: 0, x: 0, y: 0 });
 
   useEffect(() => {
     const cv = canvasRef.current!;
@@ -58,7 +63,15 @@ export function Stage({ world, keysEnabled, flashKey }: Props) {
       return;
     }
     const down = (e: KeyboardEvent) => {
-      if (!e.key.startsWith('Arrow') || (e.target as HTMLElement).tagName === 'INPUT') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.code === 'Space' && tag !== 'BUTTON') {
+        e.preventDefault();
+        world.jump();
+        setHint(false);
+        return;
+      }
+      if (!e.key.startsWith('Arrow')) return;
       world.keys.add(e.key);
       e.preventDefault();
       setHint(false);
@@ -98,16 +111,25 @@ export function Stage({ world, keysEnabled, flashKey }: Props) {
           height={H * SS}
           aria-label={`${world.spot.name}. 바닥을 누르면 그 자리로 걸어가요.`}
           onPointerDown={(e) => {
+            const now = performance.now();
+            const prev = lastTap.current;
+            lastTap.current = { t: now, x: e.clientX, y: e.clientY };
+            setHint(false);
+            if (now - prev.t < 320 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 24) {
+              world.jump();
+              return;
+            }
             const rc = e.currentTarget.getBoundingClientRect();
             world.walkTo(((e.clientX - rc.left) / rc.width) * W, ((e.clientY - rc.top) / rc.height) * H);
-            setHint(false);
           }}
         />
         <div ref={tagsRef} className="tags" aria-hidden="true" />
         <div ref={flashRef} className="flash" />
         <div className="hint" style={{ opacity: hint ? 1 : 0 }}>
-          바닥을 누르면 걸어가요
+          바닥을 누르면 걸어가요 · 두 번 누르면 점프
         </div>
+        <EmoteButtons world={world} />
+        {overlay}
       </div>
     </div>
   );

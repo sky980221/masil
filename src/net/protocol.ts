@@ -30,6 +30,18 @@ export interface MovePayload {
   ty: number;
 }
 
+/** 점프·이모티콘·포즈처럼 순간적인 동작 */
+export type ActKind = 'jump' | 'emote' | 'pose';
+export interface ActPayload {
+  id: string;
+  k: ActKind;
+  /** emote: heart|tree, pose: 포즈 이름, jump: 빈 값 */
+  v: string;
+}
+export const EMOTES = ['heart', 'tree'] as const;
+export type Emote = (typeof EMOTES)[number];
+export const POSE_KEYS = ['none', 'peace', 'heart', 'wave', 'jump', 'sit'] as const;
+
 export interface PeerState extends MovePayload {
   name: string;
   look: Record<string, string>;
@@ -153,4 +165,14 @@ export function diffPresence(prev: ReadonlyMap<string, Presence>, next: Presence
 export function admitted(list: Pick<Presence, 'id' | 'joinedAt'>[], capacity = ROOM_CAPACITY): Set<string> {
   const sorted = [...list].sort((a, b) => a.joinedAt - b.joinedAt || a.id.localeCompare(b.id));
   return new Set(sorted.slice(0, capacity).map((p) => p.id));
+}
+
+export function cleanAct(raw: unknown): ActPayload | null {
+  const o = asObject(raw);
+  const id = o && cleanId(o.id);
+  if (!o || !id) return null;
+  if (o.k === 'jump') return { id, k: 'jump', v: '' };
+  if (o.k === 'emote' && (EMOTES as readonly unknown[]).includes(o.v)) return { id, k: 'emote', v: o.v as string };
+  if (o.k === 'pose' && (POSE_KEYS as readonly unknown[]).includes(o.v)) return { id, k: 'pose', v: o.v as string };
+  return null;
 }

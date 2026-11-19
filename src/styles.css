@@ -101,6 +101,22 @@ nav.spots button[aria-pressed='true'] { background: var(--ink); color: var(--pap
 .tag.me::after { border-top-color: var(--red); }
 .tag::after { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -3px; border: 3px solid transparent; border-top-color: var(--ink); }
 
+.emotes { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+.emotes button { width: 34px; height: 34px; padding: 0; background: var(--paper-hi); }
+.posebar {
+  position: absolute; left: 6px; right: 6px; top: 6px; z-index: 3; padding: 6px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--paper-hi); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink);
+}
+.poses { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.poses button { flex: none; }
+.poses button { font-size: 12px; padding: 4px 8px; box-shadow: 0 2px 0 var(--ink); }
+.poses button[aria-pressed='true'] { background: var(--ink); color: var(--paper-hi); }
+.pose-actions { display: flex; gap: 6px; }
+.pose-actions button { flex: 1; padding: 5px; font-size: 13px; }
+.countdown {
+  position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  font-family: var(--f-head); font-size: 96px; color: #fffaf0; text-shadow: 4px 4px 0 var(--ink), -2px -2px 0 var(--ink);
+}
 .actions { grid-area: actions; display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 8px; }
 .actions button { padding: 10px 6px; font-size: 14px; }
 .gift-btn .dot { position: absolute; top: -8px; right: -6px; background: var(--gold); border: 2px solid var(--ink); font-size: 10px; line-height: 1; padding: 2px 3px; }

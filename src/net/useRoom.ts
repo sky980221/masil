@@ -55,9 +55,11 @@ export function useRoom(world: World, roomId: string | null, name: string, look:
           world.removePeer(id);
           refresh();
         },
+        act: (a) => world.peerAct(a),
       },
     );
     client.current = c;
+    world.onAct = (k, v) => c.act(k, v);
 
     // 목적지나 장소가 바뀌었을 때만 보낸다. 상대 화면에서는 그쪽으로 걸어간다.
     let sent = '';
@@ -70,6 +72,7 @@ export function useRoom(world: World, roomId: string | null, name: string, look:
 
     return () => {
       clearInterval(tick);
+      world.onAct = undefined;
       c.close();
       client.current = null;
       world.setOnline(false);

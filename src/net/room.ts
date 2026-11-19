@@ -4,7 +4,7 @@
 // 서버 코드 없이 Supabase가 메시지를 전달만 하므로, 받은 값은 모두 protocol.ts에서 거른다.
 // 라이브러리는 방에 들어갈 때만 불러온다 (첫 화면 용량을 줄이려고)
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { type MovePayload, type PeerState, type Presence, MOVE_INTERVAL, admitted, cleanMove, cleanPresence, diffPresence } from './protocol';
+import { type ActKind, type ActPayload, type MovePayload, type PeerState, type Presence, MOVE_INTERVAL, admitted, cleanAct, cleanMove, cleanPresence, diffPresence } from './protocol';
 
 export type RoomStatus = 'connecting' | 'open' | 'reconnecting' | 'full';
 
@@ -15,6 +15,7 @@ export interface RoomHandlers {
   move(m: MovePayload): void;
   look(m: { id: string; name: string; look: Record<string, string> }): void;
   leave(id: string): void;
+  act(a: ActPayload): void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -69,6 +70,11 @@ export class RoomClient {
         if (!m || m.id === this.me.id || !this.known.has(m.id)) return;
         this.known.get(m.id)!.spot = m.spot;
         on.move(m);
+      })
+      .on('broadcast', { event: 'act' }, ({ payload }) => {
+        const a = cleanAct(payload);
+        if (!a || a.id === this.me.id || !this.known.has(a.id)) return;
+        on.act(a);
       })
       .subscribe(async (status) => {
         if (this.stopped) return;
@@ -144,6 +150,12 @@ export class RoomClient {
         this.pendingMove = null;
       }
     }, wait);
+  }
+
+  /** 점프·이모티콘·포즈는 바로 보낸다 (사람이 누를 때만 생기므로 잦지 않다) */
+  act(k: ActKind, v: string): void {
+    if (this.stopped) return;
+    void this.channel?.send({ type: 'broadcast', event: 'act', payload: { id: this.me.id, k, v } });
   }
 
   look(name: string, look: Record<string, string>): void {

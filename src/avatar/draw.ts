@@ -3,6 +3,17 @@ import { type Ctx, R, P, mix, glow, line } from '../engine/pixel';
 import { drawStar } from '../engine/props';
 import { type Look, SKIN, HAIRC, TOPC, SCARF } from './options';
 
+/** 사진 찍을 때 고르는 포즈 */
+export type Pose = 'none' | 'peace' | 'heart' | 'wave' | 'jump' | 'sit';
+export const POSES: { key: Pose; name: string }[] = [
+  { key: 'none', name: '기본' },
+  { key: 'peace', name: '브이' },
+  { key: 'heart', name: '하트' },
+  { key: 'wave', name: '손 흔들기' },
+  { key: 'jump', name: '점프' },
+  { key: 'sit', name: '앉기' },
+];
+
 export interface AvatarPose {
   x: number;
   y: number;
@@ -12,6 +23,10 @@ export interface AvatarPose {
   /** 깜빡임·걸음 박자를 아바타마다 다르게 */
   seed: number;
   look: Look;
+  /** 멈춰 있을 때 취하는 포즈 */
+  pose?: Pose;
+  /** 점프 높이 (좌표 단위) */
+  air?: number;
 }
 
 const HEAD_W = [10, 12, 14, 16, 16, 16, 16, 16, 16, 16, 16, 16, 14, 12, 10];
@@ -25,33 +40,48 @@ export function headTop(look: Look): number {
 
 export function drawAvatar(c: Ctx, a: AvatarPose, t: number): void {
   const x = Math.round(a.x);
-  const y = Math.round(a.y);
+  const ground = Math.round(a.y);
   const L = a.look;
   const d = a.dir;
   const sk = SKIN[L.skin];
   const hc = HAIRC[L.hairc];
+  // 걷는 중에는 포즈를 풀고, 공중에 뜨면 몸 전체를 올린다
+  const pose: Pose = a.moving ? 'none' : (a.pose ?? 'none');
+  const air = Math.round((a.air ?? 0) + (pose === 'jump' ? 8 : 0));
+  const sit = pose === 'sit';
+  const y = ground - air + (sit ? 6 : 0);
   const step = a.moving ? Math.floor(t * 8 + a.seed) % 2 : 0;
   const bob = a.moving && step ? 1 : 0;
   const ty = y - 17 - bob; // 몸통 위
   const ht = y - 31 - bob; // 머리 위
   const hx = d < 0 ? x - 13 : x + 7; // 소품을 드는 손 옆
 
-  // 그림자
+  // 그림자: 높이 뜰수록 작아진다
+  const sw = Math.max(6, 16 - air);
   c.globalAlpha = 0.25;
-  R(c, x - 8, y - 1, 16, 2, '#000');
-  R(c, x - 6, y + 1, 12, 1, '#000');
+  R(c, x - sw / 2, ground - 1, sw, 2, '#000');
+  R(c, x - sw / 2 + 2, ground + 1, sw - 4, 1, '#000');
   c.globalAlpha = 1;
 
   // 다리와 신발
-  const l1 = a.moving && step ? 1 : 0;
-  const l2 = a.moving && !step ? 1 : 0;
   const leg = L.bottom === 'pants' ? '#3d4a72' : '#4a3a4a';
-  R(c, x - 4, y - 7 - l1, 3, 6, leg);
-  R(c, x + 1, y - 7 - l2, 3, 6, leg);
-  R(c, x - 5, y - 2 - l1, 5, 2, '#5a3a2a');
-  R(c, x + 1, y - 2 - l2, 5, 2, '#5a3a2a');
-  P(c, x - 4, y - 2 - l1, '#7a5440');
-  P(c, x + 2, y - 2 - l2, '#7a5440');
+  if (sit) {
+    // 앉으면 다리를 앞으로 뻗는다
+    R(c, x - 5, y - 4, 4, 3, leg);
+    R(c, x + 1, y - 4, 4, 3, leg);
+    R(c, x - 6, y - 2, 3, 2, '#5a3a2a');
+    R(c, x + 4, y - 2, 3, 2, '#5a3a2a');
+  } else {
+    const spread = air > 0 ? 1 : 0;
+    const l1 = a.moving && step ? 1 : 0;
+    const l2 = a.moving && !step ? 1 : 0;
+    R(c, x - 4 - spread, y - 7 - l1, 3, 6, leg);
+    R(c, x + 1 + spread, y - 7 - l2, 3, 6, leg);
+    R(c, x - 5 - spread, y - 2 - l1, 5, 2, '#5a3a2a');
+    R(c, x + 1 + spread, y - 2 - l2, 5, 2, '#5a3a2a');
+    P(c, x - 4 - spread, y - 2 - l1, '#7a5440');
+    P(c, x + 2 + spread, y - 2 - l2, '#7a5440');
+  }
 
   // 뒷머리
   if (L.hair === 'long') {
@@ -73,7 +103,7 @@ export function drawAvatar(c: Ctx, a: AvatarPose, t: number): void {
     }
   }
 
-  drawBody(c, L, x, ty);
+  drawBody(c, L, x, ty, pose);
 
   // 얼굴
   HEAD_W.forEach((w, i) => {
@@ -115,17 +145,65 @@ export function drawAvatar(c: Ctx, a: AvatarPose, t: number): void {
 
   drawFace(c, L, x, ht, d, t, a.seed);
   drawHat(c, L, x, ht);
-  drawItem(c, L, a, hx, ty, ht, d, t);
+  drawRaisedArms(c, L, x, ty, ht, pose, t);
+  // 손을 들어 올리는 포즈에서는 소품을 잠시 내려놓는다
+  if (pose === 'none' || pose === 'sit') drawItem(c, L, a, hx, ty, ht, d, t);
 }
 
-function drawBody(c: Ctx, L: Look, x: number, ty: number): void {
+/** 포즈에 따라 위로 든 팔 (내린 팔은 drawBody에서 그린다) */
+function drawRaisedArms(c: Ctx, L: Look, x: number, ty: number, ht: number, pose: Pose, t: number): void {
+  const sk = SKIN[L.skin].c;
+  const arm = TOPC[L.topc].d;
+  if (pose === 'peace') {
+    R(c, x + 5, ty - 6, 2, 8, arm);
+    R(c, x + 5, ty - 8, 2, 2, sk);
+    P(c, x + 5, ty - 9, sk);
+    P(c, x + 4, ty - 10, sk);
+    P(c, x + 6, ty - 9, sk);
+    P(c, x + 7, ty - 10, sk);
+  } else if (pose === 'wave') {
+    const sway = Math.round(Math.sin(t * 10));
+    R(c, x + 6, ty - 5, 2, 7, arm);
+    R(c, x + 6 + sway, ty - 8, 3, 3, sk);
+  } else if (pose === 'heart') {
+    // 머리 위로 두 팔을 둥글게 모아 하트 모양
+    R(c, x - 10, ht + 6, 2, ty - ht - 5, arm);
+    R(c, x + 8, ht + 6, 2, ty - ht - 5, arm);
+    R(c, x - 10, ht + 1, 2, 5, sk);
+    R(c, x + 8, ht + 1, 2, 5, sk);
+    P(c, x - 9, ht, sk);
+    P(c, x - 8, ht - 1, sk);
+    P(c, x - 6, ht - 2, sk);
+    P(c, x - 4, ht - 2, sk);
+    P(c, x - 2, ht - 1, sk);
+    P(c, x - 1, ht, sk);
+    P(c, x + 1, ht - 1, sk);
+    P(c, x + 3, ht - 2, sk);
+    P(c, x + 5, ht - 2, sk);
+    P(c, x + 7, ht - 1, sk);
+    P(c, x + 8, ht, sk);
+  } else if (pose === 'jump') {
+    R(c, x - 9, ty - 6, 2, 7, arm);
+    R(c, x + 7, ty - 6, 2, 7, arm);
+    R(c, x - 9, ty - 8, 2, 2, sk);
+    R(c, x + 7, ty - 8, 2, 2, sk);
+  }
+}
+
+function drawBody(c: Ctx, L: Look, x: number, ty: number, pose: Pose): void {
   const sk = SKIN[L.skin];
   const tc = TOPC[L.topc];
-  // 팔과 손
-  R(c, x - 7, ty + 1, 2, 8, tc.d);
-  R(c, x + 5, ty + 1, 2, 8, tc.d);
-  R(c, x - 7, ty + 8, 2, 2, sk.c);
-  R(c, x + 5, ty + 8, 2, 2, sk.c);
+  // 내린 팔과 손 (포즈로 든 팔은 drawRaisedArms에서)
+  const leftUp = pose === 'heart' || pose === 'jump';
+  const rightUp = leftUp || pose === 'peace' || pose === 'wave';
+  if (!leftUp) {
+    R(c, x - 7, ty + 1, 2, 8, tc.d);
+    R(c, x - 7, ty + 8, 2, 2, sk.c);
+  }
+  if (!rightUp) {
+    R(c, x + 5, ty + 1, 2, 8, tc.d);
+    R(c, x + 5, ty + 8, 2, 2, sk.c);
+  }
   // 몸통
   if (L.top === 'padding') {
     R(c, x - 6, ty, 12, 10, tc.c);
